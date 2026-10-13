@@ -99,9 +99,9 @@ export const DialogHost = () => {
 
 // ---------- Tela cheia / folha de baixo ----------
 
-export const Sheet = ({ title, onClose, children, footer, wide, left }) => html`
-  <div class="overlay" onClick=${onClose}>
-    <section class=${'sheet slide-up' + (wide ? ' wide' : '')} onClick=${(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label=${title}>
+export const Sheet = ({ title, onClose, children, footer, wide, left, float }) => html`
+  <div class=${'overlay' + (float ? ' float' : '')} onClick=${onClose}>
+    <section class=${'sheet slide-up' + (wide ? ' wide' : '') + (float ? ' float' : '')} onClick=${(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label=${title}>
       <header class="sheet-head">
         ${left || html`<span class="w40"></span>`}
         <h2>${title}</h2>

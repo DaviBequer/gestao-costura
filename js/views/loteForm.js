@@ -253,7 +253,7 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
   const title = f.step === 'tipo' ? 'Novo lote' : conferencia ? (wasFinal ? `Lote #${fmtRef(lote.ref)}` : 'Conferência') : isNew ? `Novo · ${TIPO_LABEL[f.tipo]}` : 'Editar lote';
 
   if (f.step === 'tipo') {
-    return html`<${Sheet} title=${title} onClose=${onClose}>
+    return html`<${Sheet} title=${title} onClose=${onClose} float>
       <p class="muted center mb">Qual é o tipo do lote?</p>
       <div class="tipo-grid">
         ${['superior', 'inferior', 'conjunto'].map(
