@@ -316,7 +316,8 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
                 <span class="lf-label">Referência</span>
                 <div class="ref-input" onClick=${(e) => e.target === e.currentTarget && e.currentTarget.querySelector(f.refNum.length === 3 ? ".ref-char" : ".ref-num").focus()}>
                   <span class="ref-zero">0</span>
-                  <input class="input ref-num" type="text" inputmode="numeric" maxlength="3" placeholder="000" value=${f.refNum}
+                  <input class="input ref-num" type="text" inputmode="numeric" maxlength="3" placeholder="000" value=${f.refNum} enterkeyhint="next"
+                    onKeyDown=${(e) => { if (e.key === 'Enter') { e.preventDefault(); charRef.current?.focus(); } }}
                     autoFocus=${isNew && !f.refNum}
                     onInput=${(e) => {
                       const v = onlyDigits(e.target.value, 3);
@@ -325,10 +326,14 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
                       if (v.length === 3) charRef.current?.focus();
                     }} />
                   <input ref=${charRef} class="input ref-char" type="text" maxlength="2" placeholder="A" value=${f.refChar}
+                    autocapitalize="characters" autocomplete="off" enterkeyhint="done"
+                    onKeyDown=${(e) => { if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); e.target.blur(); } }}
                     onInput=${(e) => {
                       const v = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(-1);
                       e.target.value = v;
                       up({ refChar: v });
+                      // Letra digitada: fecha o teclado, o próximo passo é tocar nos tamanhos
+                      if (v) e.target.blur();
                     }} />
                 </div>
               </div>`}

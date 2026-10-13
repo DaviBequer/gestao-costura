@@ -33,6 +33,85 @@ const Ring = ({ pct, prod }) => {
   </div>`;
 };
 
+// ---------- Gráfico do mês: faturamento acumulado x ritmo da meta ----------
+
+/** Curva suave (Catmull-Rom → Bézier) passando pelos pontos */
+const smoothPath = (pts) => {
+  if (pts.length < 2) return '';
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    // Acumulado nunca desce: limita os pontos de controle ao intervalo do segmento
+    const lo = Math.min(p1[1], p2[1]), hi = Math.max(p1[1], p2[1]);
+    d += ` C${c1x.toFixed(1)},${Math.min(hi, Math.max(lo, c1y)).toFixed(1)} ${c2x.toFixed(1)},${Math.min(hi, Math.max(lo, c2y)).toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  return d;
+};
+
+const MonthChart = ({ lotes, ym, meta, isPast }) => {
+  const dim = daysInMonth(ym);
+  const hoje = isPast ? dim : new Date().getDate();
+  const weeks = weeksOfMonth(lotes, ym);
+  const cur = isPast ? 5 : currentWeekIndex();
+
+  // Faturado por dia → acumulado
+  const porDia = new Array(dim + 1).fill(0);
+  finishedInMonth(lotes, ym).forEach((l) => (porDia[Number(l.dataFim.slice(8, 10))] += loteValue(l)));
+  const acum = [0];
+  for (let d = 1; d <= dim; d++) acum[d] = acum[d - 1] + porDia[d];
+  const total = acum[hoje];
+  const ideal = meta ? (meta * hoje) / dim : 0;
+
+  const W = 320, H = 112, top = 22, bottom = 6, left = 4, right = 4;
+  const max = Math.max(1, meta, acum[dim]) * 1.08;
+  const x = (d) => left + ((W - left - right) * d) / dim;
+  const y = (v) => top + (H - top - bottom) * (1 - v / max);
+  const pts = [];
+  // Pontos só no início, nos dias com entrega e em hoje: curva suave em vez de degraus
+  for (let d = 0; d <= hoje; d++) if (d === 0 || d === hoje || porDia[d] > 0) pts.push([x(d), y(acum[d])]);
+  const line = smoothPath(pts);
+  const area = `${line} L${x(hoje).toFixed(1)},${H - bottom} L${x(0)},${H - bottom} Z`;
+  const ahead = total >= ideal;
+  const tx = x(hoje), ty = y(total);
+  const label = brl0(total);
+  const lw = label.length * 6.4 + 14;
+  const lx = Math.min(W - lw - 2, Math.max(2, tx - lw / 2));
+  const bands = [0, 7, 14, 21, 28, dim].filter((v, i, a) => i === 0 || v > a[i - 1]);
+
+  return html`
+    <div class="mchart">
+      <svg viewBox=${`0 0 ${W} ${H}`} role="img" aria-label=${`Faturado ${label} até o dia ${hoje}`}>
+        <defs>
+          <linearGradient id="mcFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#fff" stop-opacity="0.45" />
+            <stop offset="1" stop-color="#fff" stop-opacity="0" />
+          </linearGradient>
+        </defs>
+        ${bands.slice(1, -1).map((d) => html`<line class="mc-sep" x1=${x(d)} x2=${x(d)} y1=${top - 8} y2=${H - bottom} />`)}
+        ${!isPast && html`<rect class="mc-now" x=${x(bands[Math.min(cur, bands.length - 2)])} y=${top - 8} width=${x(bands[Math.min(cur + 1, bands.length - 1)]) - x(bands[Math.min(cur, bands.length - 2)])} height=${H - bottom - top + 8} rx="6" />`}
+        ${meta > 0 && html`<line class="mc-ideal" x1=${x(0)} y1=${y(0)} x2=${x(dim)} y2=${y(meta)} />`}
+        ${meta > 0 && html`<text class="mc-meta" x=${W - right} y=${y(meta) - 5} text-anchor="end">meta</text>`}
+        <path class="mc-area" d=${area} />
+        <path class="mc-line" d=${line} />
+        <circle class=${'mc-dot' + (ahead ? ' ok' : '')} cx=${tx} cy=${ty} r="4.5" />
+        <g class="mc-bubble">
+          <rect x=${lx} y=${Math.max(1, ty - 26)} width=${lw} height="18" rx="9" />
+          <text x=${lx + lw / 2} y=${Math.max(1, ty - 26) + 12.5} text-anchor="middle">${label}</text>
+        </g>
+      </svg>
+      <div class="mc-weeks" style=${`grid-template-columns:${bands.slice(1).map((d, i) => `${d - bands[i]}fr`).join(' ')}`}>
+        ${weeks.slice(0, bands.length - 1).map((w, i) => html`<div class=${'mc-week' + (i === cur ? ' current' : '') + (i > cur ? ' future' : '')} key=${i}>
+          <b>${w.label}</b><small>${w.value ? brl0(w.value) : '—'}</small>
+        </div>`)}
+      </div>
+      ${meta > 0 && !isPast && html`<p class=${'mc-pace ' + (ahead ? 'ok' : 'low')}>
+        ${ahead ? `✨ ${brl0(total - ideal)} acima do ritmo da meta` : `${brl0(ideal - total)} abaixo do ritmo da meta`}
+      </p>`}
+    </div>`;
+};
+
 // ---------- Resumo do mês (meta + semanas) ----------
 
 const Hero = ({ filter, onAnnual }) => {
@@ -49,13 +128,6 @@ const Hero = ({ filter, onAnnual }) => {
   const falta = Math.max(0, meta - faturado);
   const diasRestantes = daysInMonth(ym) - new Date().getDate() + 1;
   const porDia = !isPast && falta > 0 && diasRestantes > 0 ? falta / diasRestantes : 0;
-
-  // Semanas: meta proporcional aos dias de cada uma (a S5 tem só 1 a 3 dias)
-  const weeks = weeksOfMonth(lotes, ym);
-  const dim = daysInMonth(ym);
-  const cur = isPast ? 5 : currentWeekIndex();
-  const goalOf = (i) => (meta * (i < 4 ? 7 : dim - 28)) / dim;
-  const maxW = Math.max(1, ...weeks.map((w, i) => Math.max(w.value, goalOf(i)))) * 1.15;
 
   return html`
     <section class="hero">
@@ -81,20 +153,7 @@ const Hero = ({ filter, onAnnual }) => {
           ${porDia > 0 && html`<span><${Icon} name="clock" size=${13} /> ~${brl0(porDia)}/dia p/ bater</span>`}
         </div>`}
 
-      <div class="hero-weeks" aria-label="Desempenho semanal">
-        ${weeks.map((w, i) => {
-          if (i === 4 && dim <= 28) return null;
-          const hit = w.value > 0 && w.value >= goalOf(i);
-          return html`<div class=${'hw' + (i > cur ? ' future' : '') + (i === cur ? ' current' : '') + (hit ? ' hit' : '')} key=${i}>
-            <small>${w.value ? brl0(w.value).replace('R$', '').trim() : '—'}</small>
-            <div class="hw-track">
-              <span class="hw-goal" style=${`bottom:${(goalOf(i) / maxW) * 100}%`}></span>
-              <span class="hw-bar" style=${`height:${Math.max(w.value ? 6 : 0, (w.value / maxW) * 100)}%`}></span>
-            </div>
-            <b>${w.label}</b>
-          </div>`;
-        })}
-      </div>
+      <${MonthChart} lotes=${lotes} ym=${ym} meta=${meta} isPast=${isPast} />
 
       ${editing && html`
         <div class="overlay center" onClick=${() => setEditing(false)}>
