@@ -12,17 +12,29 @@ Deixe a janela preta aberta enquanto usa o app; feche-a para parar.
 
 > Os dados ficam salvos no navegador do aparelho onde o app é aberto. Celular e computador têm dados separados: use **Backup → Restaurar** para levar de um para o outro.
 
-## Como colocar no celular (grátis)
+## Endereço do app
 
-O app precisa estar em um endereço `https://` para ser instalado no celular. O jeito mais fácil:
+**https://davibequer.github.io/gestao-costura/**
 
-1. Acesse **https://app.netlify.com/drop** e crie uma conta grátis.
-2. Arraste a pasta **Costura** inteira para a página.
-3. Abra o link gerado no celular (Chrome no Android ou Safari no iPhone).
-4. Android: menu ⋮ → **Instalar app**. iPhone: botão compartilhar → **Adicionar à Tela de Início**.
+Hospedado de graça no GitHub Pages (repositório: https://github.com/DaviBequer/gestao-costura).
 
-Para publicar uma atualização, arraste a pasta de novo em *Deploys* do mesmo site.
-**Antes disso, aumente o número em `sw.js`** (`const VERSAO = 'costura-v2.0.1'`). Assim os celulares baixam a versão nova e mostram o aviso "Nova versão disponível".
+### Instalar no celular
+
+- **Android (Chrome):** abra o endereço → menu ⋮ → **Instalar app** (ou "Adicionar à tela inicial").
+- **iPhone (Safari):** abra o endereço → botão compartilhar → **Adicionar à Tela de Início**.
+
+### Publicar uma atualização
+
+1. Aumente o número em `sw.js` (ex.: `const VERSAO = 'costura-v2.0.7'`) — é isso que faz os celulares baixarem a versão nova e mostrarem "Nova versão disponível".
+2. Envie para o GitHub:
+
+```bash
+git add -A
+git commit -m "Descreva a mudança"
+git push
+```
+
+Em 1–2 minutos o GitHub Pages publica sozinho.
 
 ## Trazendo os dados do app antigo
 
