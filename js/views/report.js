@@ -2,7 +2,7 @@
 
 import { html, useState, useMemo, useEffect, useRef } from '../../vendor/preact-htm.js';
 import { Icon, Sheet, Empty, toast } from '../ui.js';
-import { brl, num, dm, dmy, today, MESES, currentMonth, shiftMonth, monthLabel, sameMonth, shareOrDownload } from '../util.js';
+import { brl, num, dmy, today, MESES, currentMonth, shiftMonth, monthLabel, sameMonth, shareOrDownload } from '../util.js';
 import { isFinal, loteValue, loteExtraValue, loteRegularValue, lotePieces, loteExtraPieces, partQty, partsOf, TIPO_LABEL } from '../calc.js';
 import { useStore } from '../store.js';
 
@@ -30,13 +30,13 @@ const loadHtml2pdf = () => {
 const Qty = ({ lote }) => {
   const parts = partsOf(lote);
   if (parts.length === 1) return html`<span>${partQty(lote, parts[0])}</span>`;
-  return html`<span class="r-split"><span>Sup ${partQty(lote, 'sup')}</span><span>Inf ${partQty(lote, 'inf')}</span></span>`;
+  return html`<span class="r-split"><span><${Icon} name="shirt" size=${12} class="r-ico" />${partQty(lote, 'sup')}</span><span><${Icon} name="pants" size=${12} class="r-ico" />${partQty(lote, 'inf')}</span></span>`;
 };
 
 const Price = ({ lote }) => {
   const parts = partsOf(lote);
   if (parts.length === 1) return html`<span>${brl(lote.partes[parts[0]].preco)}</span>`;
-  return html`<span class="r-split"><span>Sup ${brl(lote.partes.sup.preco)}</span><span>Inf ${brl(lote.partes.inf.preco)}</span></span>`;
+  return html`<span class="r-split"><span><${Icon} name="shirt" size=${12} class="r-ico" />${brl(lote.partes.sup.preco)}</span><span><${Icon} name="pants" size=${12} class="r-ico" />${brl(lote.partes.inf.preco)}</span></span>`;
 };
 
 export const Report = ({ initial, onClose }) => {
@@ -90,7 +90,15 @@ export const Report = ({ initial, onClose }) => {
         .from(el);
       const blob = await worker.output('blob');
       const r = await shareOrDownload(blob, name, 'Relatório de produção', `Relatório de ${periodLabel}`);
-      if (r === 'downloaded') toast('PDF salvo nos downloads');
+      if (r === 'downloaded') {
+        // Sem compartilhamento de arquivo (computador): abre a conversa com o número dos Ajustes para anexar o PDF
+        const phone = (settings.whatsapp || '').replace(/D/g, '');
+        if (phone) {
+          const txt = `Segue o relatório de ${periodLabel} (${brl(total)}). O PDF foi salvo no aparelho, é só anexar.`;
+          window.open(`https://wa.me/${phone.length <= 11 ? '55' + phone : phone}?text=${encodeURIComponent(txt)}`, '_blank');
+        }
+        toast('PDF salvo nos downloads');
+      }
     } catch (e) {
       console.error(e);
       toast(e.message || 'Erro ao gerar PDF', 'error');
@@ -105,9 +113,11 @@ export const Report = ({ initial, onClose }) => {
   });
 
   const isMonth = periodo !== 'todos';
-  const footer = html`<button class="btn big primary" disabled=${busy || !rows.length} onClick=${gerar}>
-    <${Icon} name="share" /> ${busy ? 'Gerando PDF…' : 'Gerar e compartilhar PDF'}
-  </button>`;
+  const footer = html`<div class="rep-foot">
+    <button class=${'wa-btn' + (busy ? ' busy' : '')} disabled=${busy || !rows.length} onClick=${gerar} aria-label="Enviar PDF pelo WhatsApp" title="Enviar PDF pelo WhatsApp">
+      ${busy ? html`<span class="spin"></span>` : html`<${Icon} name="whats" size=${30} stroke=${1.9} />`}
+    </button>
+  </div>`;
 
   return html`<${Sheet} title="Relatório" onClose=${onClose} footer=${footer} wide>
     <div class="report-controls">
@@ -157,7 +167,7 @@ export const Report = ({ initial, onClose }) => {
             <table class="r-table">
               <thead>
                 <tr>
-                  <th>Referência</th><th>Entrega</th><th>Grade</th><th>Valor un.</th><th>Qtd.</th><th class="num">Geral</th>
+                  <th>Referência</th><th>Grade</th><th>Valor un.</th><th>Qtd.</th><th class="num">Geral</th>
                   ${anyExtra && html`<th class="num">Tam. 6/8</th>`}
                   <th class="num">Total</th>
                 </tr>
@@ -165,7 +175,6 @@ export const Report = ({ initial, onClose }) => {
               <tbody>
                 ${rows.map((l) => html`<tr key=${l.id}>
                   <td><b>${l.ref}</b><small>${TIPO_LABEL[l.tipo]}</small></td>
-                  <td>${dm(l.dataFim)}</td>
                   <td><span class="r-sizes">${l.tamanhos.map((s) => html`<i>${s}</i>`)}</span></td>
                   <td><${Price} lote=${l} /></td>
                   <td><${Qty} lote=${l} /></td>
@@ -176,7 +185,7 @@ export const Report = ({ initial, onClose }) => {
               </tbody>
               <tfoot>
                 <tr>
-                  <td colspan=${anyExtra ? 5 : 5}><b>Total</b></td>
+                  <td colspan="4"><b>Total</b></td>
                   <td class="num">${brl(total - extra)}</td>
                   ${anyExtra && html`<td class="num">${brl(extra)}</td>`}
                   <td class="num"><b>${brl(total)}</b></td>
@@ -186,10 +195,10 @@ export const Report = ({ initial, onClose }) => {
 
             ${pendente > 0 && pendente < total && html`<p class="r-note">Valor ainda não recebido neste período: <b>${brl(pendente)}</b></p>`}
 
-            ${settings.versiculo !== false && html`
+            ${settings.versiculo !== false && (settings.versiculoTexto || settings.versiculoRef) && html`
               <footer class="r-foot">
-                <p>“Ao Rei eterno, o Deus único, imortal e invisível, sejam honra e glória para todo o sempre. Amém.”</p>
-                <cite>1 Timóteo 1:17</cite>
+                ${settings.versiculoTexto && html`<p>“${settings.versiculoTexto}”</p>`}
+                ${settings.versiculoRef && html`<cite>${settings.versiculoRef}</cite>`}
               </footer>`}
           </div>
         </div>

@@ -212,3 +212,46 @@ export const Finance = ({ onOpenLote, onReport, onAnnual }) => {
       ${editing && html`<${DespesaForm} item=${editing === 'new' ? null : editing} ym=${ym} onClose=${() => setEditing(null)} />`}
     </div>`;
 };
+
+// ---------- Janela "A receber" (aberta pelo aviso da tela inicial) ----------
+
+export const ReceberSheet = ({ onClose, onOpenLote }) => {
+  const { lotes } = useStore();
+  const receber = useMemo(() => aReceber(lotes).sort((a, b) => (a.dataFim || '').localeCompare(b.dataFim || '')), [lotes]);
+  const total = receber.reduce((a, l) => a + loteValue(l), 0);
+
+  const pagarTodos = async () => {
+    const yes = await confirmDialog({ title: 'Marcar todos como pagos?', text: `${receber.length} lote(s) — total ${brl(total)}.`, ok: 'Marcar pago', icon: 'money' });
+    if (yes) run(() => setPago(receber.map((l) => l.id), true), 'Pagamento registrado');
+  };
+
+  const footer = receber.length > 1
+    ? html`<button class="btn big primary" onClick=${pagarTodos}><${Icon} name="check" /> Marcar todos como pagos</button>`
+    : null;
+
+  return html`<${Sheet} title="A receber" onClose=${onClose} footer=${footer}>
+    ${receber.length
+      ? html`<div class="lgroup">
+          <header class="lgroup-head"><h3>Total pendente <small>${receber.length}</small></h3><span class="fin-pend">${brl(total)}</span></header>
+          <div class="lote-list">
+            ${receber.map((l) => {
+              const dias = daysBetween(l.dataFim, today());
+              return html`<div class="lrow fin" key=${l.id} onClick=${() => onOpenLote(l)}>
+                <div class="lrow-info">
+                  <h4><span class="hash">#</span>${fmtRef(l.ref)}</h4>
+                  <span class="lrow-sub">${TIPO_LABEL[l.tipo]} · ${lotePieces(l)} pçs</span>
+                  <span class="lrow-when">${dias > 0 ? html`Entregue ${dm(l.dataFim)} · <em class=${dias > 30 ? 'atrasado' : dias > 14 ? 'proximo' : ''}>há ${dias} dia${dias > 1 ? 's' : ''}</em>` : 'Entregue hoje'}</span>
+                </div>
+                <div class="lrow-end">
+                  <b>${brl(loteValue(l))}</b>
+                  <button class="tag-btn paid" onClick=${(e) => { e.stopPropagation(); run(() => setPago(l.id, true), 'Pagamento registrado'); }}>
+                    <${Icon} name="check" size=${12} stroke=${3} /> Recebi
+                  </button>
+                </div>
+              </div>`;
+            })}
+          </div>
+        </div>`
+      : html`<${Empty} icon="money" title="Tudo recebido 🎉" text="Lotes entregues e ainda não pagos aparecem aqui." />`}
+  </${Sheet}>`;
+};

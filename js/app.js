@@ -6,7 +6,7 @@ import { useStore, init, setPago, getState } from './store.js';
 import { isFinal } from './calc.js';
 import { Home, SearchSheet } from './views/home.js';
 import { LoteForm } from './views/loteForm.js';
-import { Finance } from './views/finance.js';
+import { ReceberSheet } from './views/finance.js';
 import { Stats } from './views/stats.js';
 import { Settings } from './views/settings.js';
 import { Report } from './views/report.js';
@@ -14,9 +14,7 @@ import { Annual } from './views/annual.js';
 
 const TABS = [
   { id: 'inicio', label: 'Início', icon: 'home' },
-  { id: 'financas', label: 'Finanças', icon: 'wallet' },
   { id: 'numeros', label: 'Números', icon: 'chart' },
-  { id: 'ajustes', label: 'Ajustes', icon: 'gear' },
 ];
 
 const FILTER_KEY = 'costura_filtro';
@@ -130,8 +128,7 @@ const App = () => {
 
   const go = (where) => {
     if (where === 'receber') {
-      setTab('financas');
-      setTimeout(() => document.getElementById('receber')?.scrollIntoView({ behavior: 'smooth' }), 80);
+      setModal({ type: 'receber' });
     } else if (where === 'atrasados') {
       setFilter('em_andamento');
       setTimeout(() => document.querySelector('.lote-list')?.scrollIntoView({ behavior: 'smooth' }), 80);
@@ -160,18 +157,17 @@ const App = () => {
   return html`
     <div class="shell">
       <main class="content">
-        ${tab === 'inicio' && html`<${Home} filter=${filter} setFilter=${setFilter} onNew=${newLote} onOpen=${openLote} onFinish=${finishLote}
+        ${tab === 'inicio' && html`<${Home} filter=${filter} onSettings=${() => { setTab('ajustes'); window.scrollTo(0, 0); }} setFilter=${setFilter} onNew=${newLote} onOpen=${openLote} onFinish=${finishLote}
             onAnnual=${() => setModal({ type: 'annual' })} onSearch=${() => setModal({ type: 'search' })}
             onReport=${() => setModal({ type: 'report', initial: filter === 'mes_passado' ? (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return { y: d.getFullYear(), m: d.getMonth() }; })() : filter === 'todos' ? 'todos' : null })}
             onGo=${go} />`}
-        ${tab === 'financas' && html`<${Finance} onOpenLote=${openLote} onReport=${(ym) => setModal({ type: 'report', initial: ym })} onAnnual=${() => setModal({ type: 'annual' })} />`}
         ${tab === 'numeros' && html`<${Stats} />`}
-        ${tab === 'ajustes' && html`<${Settings} onOpenLote=${openLote} focus=${focus} />`}
+        ${tab === 'ajustes' && html`<${Settings} onOpenLote=${openLote} focus=${focus} onBack=${() => { setTab('inicio'); window.scrollTo(0, 0); }} />`}
       </main>
 
       <nav class="tabbar" aria-label="Navegação">
         ${TABS.map((t, i) => html`
-          ${i === 2 && html`<button class="tab-new" onClick=${newLote} aria-label="Novo lote"><span><${Icon} name="plus" size=${26} stroke=${2.6} /></span><small>Novo lote</small></button>`}
+          ${i === 1 && html`<button class="tab-new" onClick=${newLote} aria-label="Novo lote"><span><${Icon} name="plus" size=${26} stroke=${2.6} /></span><small>Novo lote</small></button>`}
           <button class=${'tab' + (tab === t.id ? ' on' : '')} aria-current=${tab === t.id ? 'page' : null}
             onClick=${() => { setTab(t.id); window.scrollTo(0, 0); }}>
             <${Icon} name=${t.icon} size=${22} /><span>${t.label}</span>
@@ -183,6 +179,7 @@ const App = () => {
       ${modal?.type === 'search' && html`<${SearchSheet} onClose=${() => setModal(null)} onOpen=${openLote} />`}
       ${modal?.type === 'report' && html`<${Report} initial=${modal.initial} onClose=${() => setModal(null)} />`}
       ${modal?.type === 'annual' && html`<${Annual} onClose=${() => setModal(null)} />`}
+      ${modal?.type === 'receber' && html`<${ReceberSheet} onClose=${() => setModal(null)} onOpenLote=${openLote} />`}
 
       ${exitAsk && html`
         <div class="overlay center" onClick=${() => setExitAsk(false)}>

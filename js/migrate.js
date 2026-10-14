@@ -18,6 +18,8 @@ export const DEFAULT_SETTINGS = {
   declaracoes: {}, // { '2026': { 0: centavos, 1: ... } }
   ultimoBackup: null,
   versiculo: true,
+  versiculoTexto: 'Ao Rei eterno, o Deus único, imortal e invisível, sejam honra e glória para todo o sempre. Amém.',
+  versiculoRef: '1 Timóteo 1:17',
 };
 
 const numMap = (obj) => {

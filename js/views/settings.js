@@ -1,7 +1,7 @@
 // Ajustes: aparência, regras dos lotes, backup/restauração, verificação de dados.
 
 import { html, useState, useRef, useEffect } from '../../vendor/preact-htm.js';
-import { Icon, Sheet, MoneyInput, Field, Toggle, confirmDialog, toast, run } from '../ui.js';
+import { Icon, Sheet, MoneyInput, confirmDialog, toast, run } from '../ui.js';
 import { brl, dmy, fmtRef, readFileText, resizeImage, downloadBlob, num } from '../util.js';
 import { loteProblems, loteValue, lotePieces, TIPO_LABEL, isFinal } from '../calc.js';
 import { useStore, updateSettings, exportBackup, restoreBackup, clearEverything, deleteLote, setPago, getState } from '../store.js';
@@ -36,7 +36,7 @@ const DataCheck = ({ onClose, onOpen }) => {
 
 // ---------- Tela ----------
 
-export const Settings = ({ onOpenLote, focus }) => {
+export const Settings = ({ onOpenLote, focus, onBack }) => {
   const { settings, lotes, despesas, persisted } = useStore();
   const [checking, setChecking] = useState(false);
   const [usage, setUsage] = useState(null);
@@ -133,77 +133,96 @@ export const Settings = ({ onOpenLote, focus }) => {
 
   const mb = (b) => (b / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 
+
   return html`
-    <div class="page">
-      <header class="page-head"><h1>Ajustes</h1></header>
+    <div class="page set-page">
+      <header class="page-head settings-head">
+        <button class="icon-btn" onClick=${onBack} aria-label="Voltar"><${Icon} name="back" /></button>
+        <h1>Ajustes</h1>
+      </header>
 
-      <section class="block">
-        <h2>Aparência</h2>
-        <div class="logo-row">
-          <button class="logo-pick" onClick=${() => logoRef.current?.click()} aria-label="Trocar logo">
-            <img src=${settings.logo || 'icons/icon-192.png'} alt="Logo" />
-            <span><${Icon} name="camera" size=${14} /></span>
-          </button>
-          <div class="grow">
-            <${Field} label="Nome do app">
-              <input class="input" value=${name} maxlength="40" onInput=${(e) => setName(e.target.value)} onBlur=${() => name.trim() && name !== settings.appName && save({ appName: name.trim() }, 'Nome salvo')} />
-            </${Field}>
-            ${settings.logo && html`<button class="link" onClick=${() => save({ logo: null }, 'Logo padrão')}>Usar logo padrão</button>`}
-          </div>
-          <input ref=${logoRef} type="file" accept="image/*" hidden onChange=${onLogo} />
+      <!-- Identidade: logo + nome -->
+      <section class="set-group set-id">
+        <button class="set-logo" onClick=${() => logoRef.current?.click()} aria-label="Trocar logo">
+          <img src=${settings.logo || 'icons/icon-192.png'} alt="Logo" />
+          <span><${Icon} name="camera" size=${11} /></span>
+        </button>
+        <div class="set-id-text">
+          <input class="set-name" value=${name} maxlength="40" aria-label="Nome do app" onInput=${(e) => setName(e.target.value)}
+            onBlur=${() => name.trim() && name !== settings.appName && save({ appName: name.trim() }, 'Nome salvo')} />
+          <small>${settings.logo
+            ? html`Toque no logo para trocar · <button class="link" onClick=${() => save({ logo: null }, 'Logo padrão')}>usar padrão</button>`
+            : 'Toque no logo para trocar'}</small>
         </div>
-        <div class="field">
-          <span class="field-label">Tema</span>
-          <div class="seg full">
-            ${[['auto', 'Automático'], ['claro', 'Claro'], ['escuro', 'Escuro']].map(([id, label]) => html`<button class=${settings.tema === id ? 'on' : ''} onClick=${() => save({ tema: id })}>${label}</button>`)}
-          </div>
-        </div>
+        <input ref=${logoRef} type="file" accept="image/*" hidden onChange=${onLogo} />
       </section>
 
-      <section class="block">
-        <h2>Lotes e metas</h2>
-        <div class="field">
-          <span class="field-label">Tamanhos que você costura</span>
-          <div class="sizes">
-            ${ALL_SIZES.map((s) => html`<button class=${'size-btn sm' + (settings.tamanhos.includes(s) ? ' on' : '')} onClick=${() => toggleSize(s)}>${s}</button>`)}
+      <!-- Geral -->
+      <h3 class="set-title">Geral</h3>
+      <section class="set-group">
+        <div class="set-row">
+          <span class="set-label">Tema</span>
+          <div class="seg set-seg">
+            ${[['auto', 'Auto'], ['claro', 'Claro'], ['escuro', 'Escuro']].map(([id, label]) => html`<button class=${settings.tema === id ? 'on' : ''} onClick=${() => save({ tema: id })}>${label}</button>`)}
           </div>
         </div>
-        <${Field} label="Adicional por peça tam. 6/8" hint="Vale para lotes novos. Lotes antigos guardam o valor que tinham.">
-          <${MoneyInput} value=${settings.adicionalPadrao} maxDigits=${4} onChange=${(v) => save({ adicionalPadrao: v })} />
-        </${Field}>
-        <${Field} label="Meta mensal">
-          <${MoneyInput} value=${settings.metaMensal} maxDigits=${9} onChange=${(v) => save({ metaMensal: v })} />
-        </${Field}>
-        <${Field} label="WhatsApp para enviar resumos" hint="Com DDD. Deixe vazio para escolher o contato na hora.">
-          <input class="input" type="tel" inputmode="tel" placeholder="(11) 99999-9999" value=${settings.whatsapp} maxlength="20"
+        <label class="set-row">
+          <span class="set-label">Meta mensal</span>
+          <${MoneyInput} class="set-input" value=${settings.metaMensal} maxDigits=${9} onChange=${(v) => save({ metaMensal: v })} />
+        </label>
+        <label class="set-row">
+          <span class="set-label">Adicional tam. 6/8<small>por peça, vale para lotes novos</small></span>
+          <${MoneyInput} class="set-input sm" value=${settings.adicionalPadrao} maxDigits=${4} onChange=${(v) => save({ adicionalPadrao: v })} />
+        </label>
+        <label class="set-row">
+          <span class="set-label">WhatsApp<small>para relatórios e resumos</small></span>
+          <input class="set-input" type="tel" inputmode="tel" placeholder="(11) 99999-9999" value=${settings.whatsapp} maxlength="20"
             onBlur=${(e) => e.target.value !== settings.whatsapp && save({ whatsapp: e.target.value.trim() }, 'WhatsApp salvo')} />
-        </${Field}>
-        <${Toggle} on=${settings.versiculo !== false} onChange=${(v) => save({ versiculo: v })} label="Versículo no relatório" hint="1 Timóteo 1:17 no rodapé do PDF" />
+        </label>
+        <button type="button" class="set-row" onClick=${() => save({ versiculo: settings.versiculo === false })} role="switch" aria-checked=${settings.versiculo !== false}>
+          <span class="set-label">Versículo no relatório<small>${settings.versiculo !== false ? 'aparece no rodapé do PDF' : 'desligado'}</small></span>
+          <span class=${'switch' + (settings.versiculo !== false ? ' on' : '')}><span class="knob"></span></span>
+        </button>
+        ${settings.versiculo !== false && html`
+          <div class="set-row set-verse">
+            <textarea class="set-input set-textarea" rows="3" maxlength="400" placeholder="Texto do versículo"
+              defaultValue=${settings.versiculoTexto || ''}
+              onBlur=${(e) => e.target.value.trim() !== (settings.versiculoTexto || '') && save({ versiculoTexto: e.target.value.trim() }, 'Versículo salvo')}></textarea>
+            <input class="set-input set-verse-ref" maxlength="60" placeholder="Referência (ex.: 1 Timóteo 1:17)"
+              defaultValue=${settings.versiculoRef || ''}
+              onBlur=${(e) => e.target.value.trim() !== (settings.versiculoRef || '') && save({ versiculoRef: e.target.value.trim() }, 'Referência salva')} />
+          </div>`}
       </section>
 
-      <section class="block" ref=${backupRef}>
-        <h2>Backup e segurança</h2>
-        <p class="muted small">
-          Seus dados ficam só neste aparelho. Faça backup toda semana e guarde o arquivo no Google Drive ou mande para você no WhatsApp.
-        </p>
-        <div class="backup-status">
-          <span><${Icon} name="shield" size=${16} /> ${settings.ultimoBackup ? 'Último backup: ' + dmy(settings.ultimoBackup.slice(0, 10)) : 'Nenhum backup feito ainda'}</span>
-          <span><${Icon} name="check" size=${16} /> ${persisted ? 'Armazenamento protegido pelo navegador' : 'Armazenamento comum (instale o app para proteger)'}</span>
-          ${usage && html`<span><${Icon} name="layers" size=${16} /> ${lotes.length} lotes · ${despesas.length} despesas · ${mb(usage.usage || 0)} MB usados</span>`}
+      <!-- Tamanhos -->
+      <h3 class="set-title">Tamanhos que você costura</h3>
+      <section class="set-group">
+        <div class="set-sizes">
+          ${ALL_SIZES.map((s) => html`<button class=${'set-size' + (settings.tamanhos.includes(s) ? ' on' : '')} onClick=${() => toggleSize(s)}>${s}</button>`)}
         </div>
-        <div class="row gap wrap">
-          <button class="btn primary grow" onClick=${doBackup}><${Icon} name="download" /> Backup</button>
-          <button class="btn ghost grow" onClick=${() => restoreRef.current?.click()}><${Icon} name="upload" /> Restaurar</button>
-        </div>
-        <small class="muted">Aceita backups do app antigo também.</small>
-        <input ref=${restoreRef} type="file" accept=".json,application/json" hidden onChange=${onRestore} />
       </section>
 
-      <section class="block">
-        <h2>Manutenção</h2>
-        <button class="list-btn" onClick=${() => setChecking(true)}><${Icon} name="search" /> Verificar dados dos lotes <${Icon} name="next" size=${16} class="end" /></button>
-        <button class="list-btn danger" onClick=${wipe}><${Icon} name="trash" /> Apagar todos os dados <${Icon} name="next" size=${16} class="end" /></button>
+      <!-- Dados -->
+      <h3 class="set-title" ref=${backupRef}>Dados</h3>
+      <section class="set-group">
+        <div class="set-row">
+          <span class="set-label">Backup<small>${settings.ultimoBackup ? 'Último em ' + dmy(settings.ultimoBackup.slice(0, 10)) : 'Nenhum feito ainda'}</small></span>
+          <div class="row gap-s">
+            <button class="btn sm primary" onClick=${doBackup}><${Icon} name="download" size=${15} /> Fazer</button>
+            <button class="btn sm ghost" onClick=${() => restoreRef.current?.click()}><${Icon} name="upload" size=${15} /> Restaurar</button>
+          </div>
+          <input ref=${restoreRef} type="file" accept=".json,application/json" hidden onChange=${onRestore} />
+        </div>
+        <button type="button" class="set-row" onClick=${() => setChecking(true)}>
+          <span class="set-label">Verificar dados dos lotes<small>${lotes.length} lotes${usage ? ` · ${mb(usage.usage || 0)} MB` : ''}${persisted ? ' · armazenamento protegido' : ''}</small></span>
+          <${Icon} name="next" size=${16} class="set-chev" />
+        </button>
+        <button type="button" class="set-row danger" onClick=${wipe}>
+          <span class="set-label">Apagar todos os dados</span>
+          <${Icon} name="trash" size=${16} class="set-chev" />
+        </button>
       </section>
+      <p class="set-note">Seus dados ficam só neste aparelho. Faça backup toda semana. Aceita backups do app antigo.</p>
 
       <p class="version">Gestão Costura 2.0 · funciona offline</p>
 

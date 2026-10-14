@@ -2,7 +2,7 @@
 
 import { html, useMemo, useState, useEffect, useRef } from '../../vendor/preact-htm.js';
 import { Icon, Sheet, MoneyInput, NumInput, Toggle, confirmDialog, toast, run, tipoIcon } from '../ui.js';
-import { brl, today, onlyDigits, resizeImage, dmy, fmtRef } from '../util.js';
+import { brl, today, onlyDigits, resizeImage, dmy, dm, fmtRef } from '../util.js';
 import {
   partsForTipo, PART_LABEL, TIPO_LABEL, EXTRA_SIZES, loteValue, lotePieces, loteExtraValue, plannedPieces, plannedValue,
   partValue, partQty, lastPriceForRef,
@@ -137,7 +137,7 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
   const [saving, setSaving] = useState(false);
   const [tried, setTried] = useState(false);
   const [hadDraft, setHadDraft] = useState(() => isNew && !template && !!localStorage.getItem(DRAFT_KEY));
-  const [showObs, setShowObs] = useState(!!lote?.obs);
+  const [showDatas, setShowDatas] = useState(false);
   const charRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -188,6 +188,7 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
   const save = async () => {
     if (errors.length) {
       setTried(true);
+      if (/prazo|data/i.test(errors[0])) setShowDatas(true);
       return toast(errors[0], 'error');
     }
     setSaving(true);
@@ -283,6 +284,7 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
         <strong>${brl(total)}</strong>
         <span>${pecas} pçs${extra > 0 ? ` · +${brl(extra)} adicional` : ''}</span>
       </div>
+      ${!isNew && html`<button class="icon-btn lf-del" onClick=${remove} disabled=${saving} aria-label="Excluir lote"><${Icon} name="trash" /></button>`}
       <button class=${'btn lf-save ' + (conferencia ? 'accent' : 'primary')} disabled=${saving} onClick=${save}>
         <${Icon} name="check" />
         ${saving ? 'Salvando…' : conferencia && !wasFinal ? 'Confirmar' : 'Salvar'}
@@ -348,18 +350,20 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
 
         <div class="lf-sizes">
           <span class="lf-label">Tamanhos</span>
-          <div class="sizes">
-            ${settings.tamanhos.map(
-              (s) => html`<button type="button" class=${'size-btn sm' + (f.tamanhos.includes(s) ? ' on' : '')} disabled=${conferencia} onClick=${() => toggleSize(s)}>${s}</button>`,
-            )}
+          <div class="lf-sizes-row">
+            <div class="sizes">
+              ${settings.tamanhos.map(
+                (s) => html`<button type="button" class=${'size-btn sm' + (f.tamanhos.includes(s) ? ' on' : '')} disabled=${conferencia} onClick=${() => toggleSize(s)}>${s}</button>`,
+              )}
+            </div>
+            ${hasExtraSizes && html`
+              <button type="button" class=${'lf-extra mini' + (f.cobra ? ' on' : '')} onClick=${() => up({ cobra: !f.cobra })}
+                role="switch" aria-checked=${f.cobra} aria-label=${`Cobrar adicional de ${brl(f.adicional)} por peça nos tamanhos 6 e 8`} title="Adicional tam. 6/8">
+                <${Icon} name="money" size=${18} />
+                <span class="switch"><span class="knob"></span></span>
+              </button>`}
           </div>
         </div>
-
-        ${hasExtraSizes && html`
-          <button type="button" class=${'lf-extra' + (f.cobra ? ' on' : '')} onClick=${() => up({ cobra: !f.cobra })} role="switch" aria-checked=${f.cobra}>
-            <span>Adicional tam. 6/8 <b>+${brl(f.adicional)}</b>/peça</span>
-            <span class="switch"><span class="knob"></span></span>
-          </button>`}
       </section>
 
       <!-- Quantidades e valores -->
@@ -416,8 +420,13 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
           <span class=${'diff ' + (diffPecas >= 0 ? 'pos' : 'neg')}>${diffPecas > 0 ? '+' : ''}${diffPecas} pçs</span>
         </div>`}
 
-      <!-- Datas -->
-      <section class="lf-card lf-dates">
+      <!-- Datas (recolhidas; o botão mostra um resumo) -->
+      <button type="button" class=${'lf-dates-toggle' + (showDatas ? ' open' : '')} onClick=${() => setShowDatas(!showDatas)} aria-expanded=${showDatas}>
+        <${Icon} name="calendar" size=${16} />
+        <span>Início <b>${dm(f.dataInicio)}</b> · ${conferencia ? html`Entregue <b>${dm(f.dataFim)}</b>` : html`Prazo <b>${f.dataPrevista ? dm(f.dataPrevista) : '—'}</b>`}</span>
+        <${Icon} name="down" size=${16} class=${showDatas ? 'rot' : ''} />
+      </button>
+      ${showDatas && html`<section class="lf-card lf-dates">
         <label class="lf-field">
           <span class="lf-label">Início</span>
           <input class="input" type="date" value=${f.dataInicio} max=${today()} onInput=${(e) => up({ dataInicio: e.target.value || today() })} />
@@ -431,16 +440,11 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
               <span class="lf-label">Prazo</span>
               <input class="input" type="date" value=${f.dataPrevista} min=${f.dataInicio} onInput=${(e) => up({ dataPrevista: e.target.value })} />
             </label>`}
-      </section>
+      </section>`}
 
       ${conferencia && html`<${Toggle} on=${f.pago} onChange=${(v) => up({ pago: v })} label="Já recebi o pagamento"
           hint=${f.pago ? (lote?.dataPagamento ? 'Pago em ' + dmy(lote.dataPagamento) : 'Marcado como pago') : 'Fica em "A receber" até marcar'} />`}
 
-      <!-- Observação (recolhida até precisar) -->
-      ${showObs
-        ? html`<textarea class="input lf-obs" rows="2" maxlength="500" placeholder="Observação (ex.: linha especial, defeito no tecido…)" value=${f.obs}
-            autoFocus=${!f.obs} onInput=${(e) => up({ obs: e.target.value })}></textarea>`
-        : html`<button class="more-toggle" onClick=${() => setShowObs(true)}><${Icon} name="plus" size=${16} /> Adicionar observação</button>`}
 
       <!-- Ações secundárias -->
       ${!isNew && html`
@@ -448,8 +452,6 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
           ${!conferencia && html`<button class="btn accent-soft wide" onClick=${() => { setConferencia(true); up({ dataFim: today() }); }}><${Icon} name="check" /> Finalizar (conferir entrega)</button>`}
           ${conferencia && !wasFinal && html`<button class="btn ghost wide" onClick=${() => setConferencia(false)}><${Icon} name="back" /> Voltar ao planejamento</button>`}
           ${wasFinal && html`<button class="btn ghost" onClick=${reopen}><${Icon} name="undo" /> Reabrir</button>`}
-          <button class="btn ghost" onClick=${() => onDuplicate(lote)}><${Icon} name="copy" /> Duplicar</button>
-          <button class="btn danger-soft" onClick=${remove}><${Icon} name="trash" /> Excluir</button>
         </div>`}
     </div>
   </${Sheet}>`;

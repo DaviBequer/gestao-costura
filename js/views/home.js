@@ -2,7 +2,7 @@
 
 import { html, useState, useMemo, useRef } from '../../vendor/preact-htm.js';
 import { Icon, Sheet, MoneyInput, Empty, confirmDialog, run, tipoIcon } from '../ui.js';
-import { brl, brl0, dm, fmtRef, MESES, daysInMonth, daysBetween, today, num } from '../util.js';
+import { brl, brl0, dm, fmtRef, MESES, daysInMonth, today, num } from '../util.js';
 import {
   FILTERS, applyFilter, filterMonth, finishedInMonth, openLotes, loteValue, lotePieces, weeksOfMonth, currentWeekIndex,
   prazoInfo, aReceber, isFinal, TIPO_LABEL,
@@ -147,10 +147,18 @@ const Hero = ({ filter, onAnnual }) => {
         </div>
       </div>
 
-      ${(producao > 0 || porDia > 0) && html`
+      ${producao > 0 && html`
+        <div class="hero-sum" aria-label="Entregue mais em produção">
+          <div><small>Entregue</small><b>${brl0(faturado)}</b></div>
+          <i>+</i>
+          <div><small><i class="dot prod"></i>Em produção</small><b>${brl0(producao)}</b></div>
+          <i>=</i>
+          <div class="total"><small>Total</small><b>${brl0(faturado + producao)}</b><span>${meta ? Math.round(((faturado + producao) / meta) * 100) + '% da meta' : ''}</span></div>
+        </div>`}
+
+      ${porDia > 0 && html`
         <div class="hero-stats">
-          ${producao > 0 && html`<span><i class="dot prod"></i>${brl0(producao)} em produção</span>`}
-          ${porDia > 0 && html`<span><${Icon} name="clock" size=${13} /> ~${brl0(porDia)}/dia p/ bater</span>`}
+          <span><${Icon} name="clock" size=${13} /> ~${brl0(porDia)}/dia p/ bater</span>
         </div>`}
 
       <${MonthChart} lotes=${lotes} ym=${ym} meta=${meta} isPast=${isPast} />
@@ -173,21 +181,18 @@ const Hero = ({ filter, onAnnual }) => {
 // ---------- Alertas ----------
 
 const Alerts = ({ onGo }) => {
-  const { lotes, settings } = useStore();
+  const { lotes } = useStore();
   const hoje = today();
   const prazos = openLotes(lotes).map((l) => prazoInfo(l, hoje)).filter(Boolean);
   const atrasados = prazos.filter((p) => p.tipo === 'atrasado').length;
   const proximos = prazos.filter((p) => p.tipo === 'hoje' || p.tipo === 'proximo').length;
   const receber = aReceber(lotes);
   const totalReceber = receber.reduce((a, l) => a + loteValue(l), 0);
-  const diasBackup = settings.ultimoBackup ? daysBetween(settings.ultimoBackup.slice(0, 10), hoje) : null;
-  const precisaBackup = lotes.length > 0 && (diasBackup === null || diasBackup >= 7);
 
   const items = [];
   if (atrasados) items.push(html`<button class="alert danger" onClick=${() => onGo('atrasados')}><${Icon} name="alert" size=${15} /> ${atrasados} atrasado${atrasados > 1 ? 's' : ''}</button>`);
   if (proximos) items.push(html`<button class="alert warn" onClick=${() => onGo('atrasados')}><${Icon} name="clock" size=${15} /> ${proximos} vence${proximos > 1 ? 'm' : ''} logo</button>`);
   if (receber.length) items.push(html`<button class="alert info" onClick=${() => onGo('receber')}><${Icon} name="money" size=${15} /> ${brl0(totalReceber)} a receber</button>`);
-  if (precisaBackup) items.push(html`<button class="alert muted" onClick=${() => onGo('backup')}><${Icon} name="shield" size=${15} /> ${diasBackup === null ? 'Fazer backup' : `Backup há ${diasBackup} dias`}</button>`);
   if (!items.length) return null;
   return html`<div class="alerts">${items}</div>`;
 };
@@ -197,6 +202,7 @@ const Alerts = ({ onGo }) => {
 const LoteRow = ({ lote, onOpen, onFinish, swiped, setSwiped }) => {
   const start = useRef(null);
   const [drag, setDrag] = useState(0);
+  const [verFoto, setVerFoto] = useState(false);
   const prazo = prazoInfo(lote);
   const fin = isFinal(lote);
   const offset = drag || (swiped ? -88 : 0);
@@ -238,7 +244,7 @@ const LoteRow = ({ lote, onOpen, onFinish, swiped, setSwiped }) => {
         style=${`transform:translateX(${offset}px);${drag ? 'transition:none' : ''}`}
         onClick=${() => (swiped ? setSwiped(null) : onOpen(lote))}
         onTouchStart=${touchStart} onTouchMove=${touchMove} onTouchEnd=${touchEnd}>
-        <div class="lrow-thumb">
+        <div class=${'lrow-thumb' + (lote.foto ? ' has-photo' : '')} onClick=${(e) => { if (lote.foto && !swiped) { e.stopPropagation(); setVerFoto(true); } }}>
           ${lote.foto ? html`<img src=${lote.foto} alt="" loading="lazy" />` : html`<${Icon} name=${tipoIcon(lote.tipo)} size=${22} stroke=${1.7} />`}
         </div>
         <div class="lrow-info">
@@ -257,6 +263,14 @@ const LoteRow = ({ lote, onOpen, onFinish, swiped, setSwiped }) => {
             : html`<button class="tag-btn finish" onClick=${(e) => { e.stopPropagation(); onFinish(lote); }}><${Icon} name="check" size=${12} stroke=${3} /> Finalizar</button>`}
         </div>
       </article>
+      ${verFoto && html`
+        <div class="overlay center photo-view" onClick=${() => setVerFoto(false)}>
+          <figure onClick=${(e) => e.stopPropagation()}>
+            <img src=${lote.foto} alt=${`Foto do lote ${lote.ref}`} />
+            <figcaption><b>#${fmtRef(lote.ref)}</b> · ${TIPO_LABEL[lote.tipo]}</figcaption>
+          </figure>
+          <button class="icon-btn photo-close" onClick=${() => setVerFoto(false)} aria-label="Fechar foto"><${Icon} name="x" /></button>
+        </div>`}
     </div>`;
 };
 
@@ -274,7 +288,7 @@ export const SearchSheet = ({ onClose, onOpen }) => {
       .slice(0, 60);
   }, [q, lotes]);
   return html`<${Sheet} title="Buscar" onClose=${onClose}>
-    <input class="input search" type="search" placeholder="Referência ou observação" value=${q} autoFocus onInput=${(e) => setQ(e.target.value)} />
+    <input class="input search" type="search" placeholder="Buscar referência" value=${q} autoFocus onInput=${(e) => setQ(e.target.value)} />
     ${q && !results.length && html`<${Empty} icon="search" title="Nada encontrado" text="Tente outra referência." />`}
     <div class="search-list">
       ${results.map(
@@ -300,7 +314,7 @@ const Group = ({ title, items, ...rowProps }) => {
   </section>`;
 };
 
-export const Home = ({ filter, setFilter, onNew, onOpen, onFinish, onAnnual, onSearch, onReport, onGo }) => {
+export const Home = ({ filter, setFilter, onNew, onOpen, onFinish, onAnnual, onSearch, onReport, onGo, onSettings }) => {
   const { lotes, settings } = useStore();
   const [swiped, setSwiped] = useState(null);
   const list = useMemo(() => applyFilter(lotes, filter), [lotes, filter]);
@@ -311,7 +325,9 @@ export const Home = ({ filter, setFilter, onNew, onOpen, onFinish, onAnnual, onS
   return html`
     <div class="page home">
       <header class="home-head">
-        <img class="home-logo" src=${settings.logo || 'icons/icon-192.png'} alt="" />
+        <button class="home-logo-btn" onClick=${onSettings} aria-label="Abrir ajustes">
+          <img class="home-logo" src=${settings.logo || 'icons/icon-192.png'} alt="" />
+        </button>
         <div class="home-title">
           <small>${saudacao()} 👋</small>
           <b>${settings.appName}</b>
