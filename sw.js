@@ -1,6 +1,7 @@
 // Service worker: guarda o app no aparelho para funcionar sem internet.
-// Ao mudar qualquer arquivo do app, aumente a VERSAO para os celulares baixarem a nova versão.
-const VERSAO = 'costura-v2.0.21';
+// Com internet, sempre busca a versão mais nova (o app abre já atualizado, sem botão).
+// Ao mudar qualquer arquivo do app, aumente a VERSAO para os celulares trocarem a cópia guardada.
+const VERSAO = 'costura-v2.0.23';
 const DEV = ['localhost', '127.0.0.1'].includes(self.location.hostname);
 
 const ARQUIVOS = [
@@ -32,7 +33,12 @@ const ARQUIVOS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSAO).then((c) => c.addAll(ARQUIVOS)));
+  // Baixa sem passar pelo cache do navegador e entra no lugar da versão antiga na hora
+  e.waitUntil(
+    caches.open(VERSAO)
+      .then((c) => c.addAll(ARQUIVOS.map((a) => new Request(a, { cache: 'reload' }))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -77,10 +83,26 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Arquivos do app: primeiro o que está guardado, senão a rede
+  // Arquivos do app: primeiro a rede (versão nova), guardando a cópia; sem rede ou rede lenta, usa a guardada
   e.respondWith(
-    caches.match(req, { ignoreSearch: true }).then(
-      (hit) => hit || fetch(req).catch(() => (req.mode === 'navigate' ? caches.match('index.html') : Response.error())),
-    ),
+    (async () => {
+      const guardado = () =>
+        caches.match(req, { ignoreSearch: true }).then((hit) => hit || (req.mode === 'navigate' ? caches.match('index.html') : undefined));
+      const rede = fetch(req, { cache: 'no-cache' }).then((res) => {
+        if (res.ok) {
+          const copia = res.clone();
+          caches.open(VERSAO).then((c) => c.put(req, copia));
+        }
+        return res;
+      });
+      // Rede muito lenta: depois de 4 s mostra a cópia guardada (a nova fica salva para a próxima)
+      const espera = new Promise((ok) => setTimeout(ok, 4000)).then(guardado);
+      try {
+        const res = await Promise.race([rede, espera.then((hit) => hit || rede)]);
+        return res || Response.error();
+      } catch (err) {
+        return (await guardado()) || Response.error();
+      }
+    })(),
   );
 });

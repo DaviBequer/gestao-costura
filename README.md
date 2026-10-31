@@ -25,7 +25,7 @@ Hospedado de graça no GitHub Pages (repositório: https://github.com/DaviBequer
 
 ### Publicar uma atualização
 
-1. Aumente o número em `sw.js` (ex.: `const VERSAO = 'costura-v2.0.7'`) — é isso que faz os celulares baixarem a versão nova e mostrarem "Nova versão disponível".
+1. Aumente o número em `sw.js` (ex.: `const VERSAO = 'costura-v2.0.7'`) — é isso que faz os celulares trocarem a cópia guardada. O app se atualiza sozinho ao abrir (sem botão), e nunca recarrega com um formulário aberto.
 2. Envie para o GitHub:
 
 ```bash

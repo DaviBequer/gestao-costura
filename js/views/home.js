@@ -1,11 +1,11 @@
 // Tela inicial: resumo do mês (meta + semanas), alertas, filtros e lista de lotes.
 
-import { html, useState, useMemo, useRef } from '../../vendor/preact-htm.js';
+import { html, useState, useMemo, useRef, useEffect } from '../../vendor/preact-htm.js';
 import { Icon, Sheet, MoneyInput, Empty, confirmDialog, run, tipoIcon } from '../ui.js';
-import { brl, brl0, dm, fmtRef, MESES, daysInMonth, today, num } from '../util.js';
+import { brl, brl0, dm, fmtRef, MESES, daysInMonth, daysBetween, today, num } from '../util.js';
 import {
   FILTERS, applyFilter, filterMonth, finishedInMonth, openLotes, loteValue, lotePieces, weeksOfMonth, currentWeekIndex,
-  prazoInfo, aReceber, isFinal, TIPO_LABEL,
+  prazoInfo, totalAReceber, isFinal, TIPO_LABEL,
 } from '../calc.js';
 import { useStore, updateSettings, deleteLote, setPago } from '../store.js';
 
@@ -16,21 +16,52 @@ const saudacao = () => {
   return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
 };
 
-// ---------- Anel de progresso ----------
+// ---------- Pesponto animado: agulha costurando a borda do cartão ----------
 
-const Ring = ({ pct, prod }) => {
-  const r = 34;
-  const c = 2 * Math.PI * r;
+/** Retângulo arredondado recuado `inset` px, como caminho SVG */
+const roundedPath = (w, h, inset = 8, r = 14) => {
+  const x0 = inset, y0 = inset, x1 = w - inset, y1 = h - inset;
+  return `M${x0 + r} ${y0} H${x1 - r} Q${x1} ${y0} ${x1} ${y0 + r} V${y1 - r} Q${x1} ${y1} ${x1 - r} ${y1} H${x0 + r} Q${x0} ${y1} ${x0} ${y1 - r} V${y0 + r} Q${x0} ${y0} ${x0 + r} ${y0} Z`;
+};
+
+const Pesponto = () => {
+  const ref = useRef(null);
+  const [size, setSize] = useState(null);
+  useEffect(() => {
+    const box = ref.current?.parentElement;
+    if (!box) return;
+    const measure = () => setSize({ w: box.offsetWidth, h: box.offsetHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, []);
+  const d = size ? roundedPath(size.w, size.h) : '';
+  return html`<svg ref=${ref} class="pesponto" width=${size?.w || 0} height=${size?.h || 0} aria-hidden="true">
+    ${size && html`
+      <mask id="pespMask"><path class="pesp-revela" pathLength="100" d=${d} /></mask>
+      <path class="pesp-linha" mask="url(#pespMask)" d=${d} />
+      <g class="pesp-agulha" style=${`offset-path:path("${d}")`}>
+        <g class="pesp-bate"><line x1="0" y1="-16" x2="0" y2="0" /><circle cx="0" cy="-16" r="2.5" /></g>
+      </g>`}
+  </svg>`;
+};
+
+// ---------- Fio da meta: a linha é puxada até onde o mês chegou ----------
+
+const FIO = 'M2 18 C40 8 70 28 110 18 S180 8 220 18 S270 28 292 18';
+
+const Fio = ({ pct, prod }) => {
   const a = Math.min(100, pct);
   const b = Math.min(100 - a, prod);
-  return html`<div class="ring">
-    <svg viewBox="0 0 80 80" aria-hidden="true">
-      <circle class="ring-bg" cx="40" cy="40" r=${r} />
-      ${b > 0 && html`<circle class="ring-prod" cx="40" cy="40" r=${r} stroke-dasharray=${`${(b / 100) * c} ${c}`} stroke-dashoffset=${-(a / 100) * c} />`}
-      <circle class="ring-fill" cx="40" cy="40" r=${r} stroke-dasharray=${`${(a / 100) * c} ${c}`} />
-    </svg>
-    <b>${Math.round(pct)}%</b>
-  </div>`;
+  return html`<svg class="fio" viewBox="0 0 294 34" aria-hidden="true">
+    <path class="fio-bg" d=${FIO} />
+    ${b > 0 && html`<path class="fio-prod" pathLength="100" d=${FIO} stroke-dasharray=${`0 ${a} ${b} 100`} />`}
+    <path class="fio-feito" pathLength="100" d=${FIO} style=${`stroke-dashoffset:${100 - a}`} />
+    <g class="fio-agulha" style=${`offset-path:path("${FIO}");offset-distance:${a}%`}>
+      <path d="M-20 -1.5 L2 0 L-20 1.5 Z" /><ellipse cx="-16" cy="0" rx="2.6" ry="1" />
+    </g>
+  </svg>`;
 };
 
 // ---------- Gráfico do mês: faturamento acumulado x ritmo da meta ----------
@@ -131,30 +162,23 @@ const Hero = ({ filter, onAnnual }) => {
 
   return html`
     <section class="hero">
+      <${Pesponto} />
       <div class="hero-top">
-        <span>Meta de ${MESES[ym.m].toLowerCase()}</span>
+        <span>Meta de ${MESES[ym.m].toLowerCase()}${meta ? ` · ${brl0(meta)}` : ''}</span>
         <div class="row gap-s">
           <button class="hero-btn" onClick=${onAnnual} aria-label="Faturamento anual"><${Icon} name="chart" size=${15} /></button>
           <button class="hero-btn" onClick=${() => { setTemp(meta); setEditing(true); }} aria-label="Editar meta"><${Icon} name="edit" size=${15} /></button>
         </div>
       </div>
 
-      <div class="hero-main">
-        <${Ring} pct=${pct} prod=${pctProd} />
-        <div class="hero-values">
-          <strong>${brl0(faturado)}</strong>
-          <span>de ${brl0(meta)} · ${falta > 0 ? `faltam ${brl0(falta)}` : 'meta batida! 🎉'}</span>
-        </div>
+      <div class="hero-values">
+        <strong>${brl0(faturado)}</strong>
+        <span class="hero-pct">${Math.round(pct)}%</span>
       </div>
-
-      ${producao > 0 && html`
-        <div class="hero-sum" aria-label="Entregue mais em produção">
-          <div><small>Entregue</small><b>${brl0(faturado)}</b></div>
-          <i>+</i>
-          <div><small><i class="dot prod"></i>Em produção</small><b>${brl0(producao)}</b></div>
-          <i>=</i>
-          <div class="total"><small>Total</small><b>${brl0(faturado + producao)}</b><span>${meta ? Math.round(((faturado + producao) / meta) * 100) + '% da meta' : ''}</span></div>
-        </div>`}
+      <${Fio} pct=${pct} prod=${pctProd} />
+      <span class="hero-note">
+        ${falta > 0 ? `faltam ${brl0(falta)}` : 'meta batida! 🎉'}${producao > 0 ? ` · ${brl0(producao)} na máquina` : ''}
+      </span>
 
       ${porDia > 0 && html`
         <div class="hero-stats">
@@ -186,15 +210,25 @@ const Alerts = ({ onGo }) => {
   const prazos = openLotes(lotes).map((l) => prazoInfo(l, hoje)).filter(Boolean);
   const atrasados = prazos.filter((p) => p.tipo === 'atrasado').length;
   const proximos = prazos.filter((p) => p.tipo === 'hoje' || p.tipo === 'proximo').length;
-  const receber = aReceber(lotes);
-  const totalReceber = receber.reduce((a, l) => a + loteValue(l), 0);
 
   const items = [];
   if (atrasados) items.push(html`<button class="alert danger" onClick=${() => onGo('atrasados')}><${Icon} name="alert" size=${15} /> ${atrasados} atrasado${atrasados > 1 ? 's' : ''}</button>`);
   if (proximos) items.push(html`<button class="alert warn" onClick=${() => onGo('atrasados')}><${Icon} name="clock" size=${15} /> ${proximos} vence${proximos > 1 ? 'm' : ''} logo</button>`);
-  if (receber.length) items.push(html`<button class="alert info" onClick=${() => onGo('receber')}><${Icon} name="money" size=${15} /> ${brl0(totalReceber)} a receber</button>`);
   if (!items.length) return null;
   return html`<div class="alerts">${items}</div>`;
+};
+
+// ---------- Retalhos: produção, peças e a receber ----------
+
+const Retalhos = ({ onGo }) => {
+  const { lotes } = useStore();
+  const abertos = openLotes(lotes);
+  const pecas = abertos.reduce((a, l) => a + lotePieces(l), 0);
+  return html`<div class="retalhos">
+    <div class="retalho xadrez"><small>Produção</small><b>${abertos.length} lote${abertos.length === 1 ? '' : 's'}</b></div>
+    <div class="retalho bolinhas"><small>Peças</small><b>${num(pecas)}</b></div>
+    <button class="retalho listras" onClick=${() => onGo('receber')}><small>A receber</small><b>${brl0(totalAReceber(lotes))}</b></button>
+  </div>`;
 };
 
 // ---------- Linha de lote (deslize para a esquerda para excluir) ----------
@@ -206,6 +240,15 @@ const LoteRow = ({ lote, onOpen, onFinish, swiped, setSwiped }) => {
   const prazo = prazoInfo(lote);
   const fin = isFinal(lote);
   const offset = drag || (swiped ? -88 : 0);
+
+  // Tempo na máquina e quanto do prazo já passou (verde → amarelo → vermelho)
+  let prog = null;
+  if (!fin && lote.dataInicio) {
+    const dias = Math.max(0, daysBetween(lote.dataInicio, today()));
+    const total = lote.dataPrevista ? Math.max(1, daysBetween(lote.dataInicio, lote.dataPrevista)) : 0;
+    const tom = !prazo ? '' : prazo.tipo === 'atrasado' ? 'atraso' : prazo.tipo === 'ok' ? 'ok' : 'perto';
+    prog = { dias, pct: total ? Math.min(100, Math.round((dias / total) * 100)) : 0, tom };
+  }
 
   const touchStart = (e) => {
     start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, locked: null };
@@ -251,7 +294,7 @@ const LoteRow = ({ lote, onOpen, onFinish, swiped, setSwiped }) => {
           <h4><span class="hash">#</span>${fmtRef(lote.ref)}</h4>
           <span class="lrow-sub">${TIPO_LABEL[lote.tipo]} · ${num(lotePieces(lote))} pçs</span>
           <span class="lrow-when">
-            ${prazo && prazo.tipo !== 'ok'
+            ${prazo
               ? html`<em class=${prazo.tipo}>${prazo.texto}</em>`
               : fin ? `Entregue ${dm(lote.dataFim)}` : lote.dataPrevista ? `Prazo ${dm(lote.dataPrevista)}` : `Início ${dm(lote.dataInicio)}`}
           </span>
@@ -262,6 +305,14 @@ const LoteRow = ({ lote, onOpen, onFinish, swiped, setSwiped }) => {
             ? html`<button class=${'tag-btn ' + (lote.pago ? 'paid' : 'due')} onClick=${togglePago}>${lote.pago ? '✓ Pago' : 'A receber'}</button>`
             : html`<button class="tag-btn finish" onClick=${(e) => { e.stopPropagation(); onFinish(lote); }}><${Icon} name="check" size=${12} stroke=${3} /> Finalizar</button>`}
         </div>
+        ${prog && html`
+          <div class=${'lrow-prog ' + prog.tom}>
+            ${lote.dataPrevista && html`<div class="lrow-bar"><i style=${`width:${prog.pct}%`}></i></div>`}
+            <div class="lrow-prog-foot">
+              <span>${prog.dias === 0 ? 'Começou hoje' : `Há ${prog.dias} dia${prog.dias > 1 ? 's' : ''} na máquina`}</span>
+              ${lote.dataPrevista && html`<span>Entrega prevista ${dm(lote.dataPrevista)}</span>`}
+            </div>
+          </div>`}
       </article>
       ${verFoto && html`
         <div class="overlay center photo-view" onClick=${() => setVerFoto(false)}>
@@ -324,6 +375,7 @@ export const Home = ({ filter, setFilter, onNew, onOpen, onFinish, onAnnual, onS
 
   return html`
     <div class="page home">
+      <svg class="home-linha" viewBox="0 0 390 140" preserveAspectRatio="none" aria-hidden="true"><path d="M-10 120 C80 40 160 140 250 70 S360 20 400 40" /></svg>
       <header class="home-head">
         <button class="home-logo-btn" onClick=${onSettings} aria-label="Abrir ajustes">
           <img class="home-logo" src=${settings.logo || 'icons/icon-192.png'} alt="" />
@@ -337,6 +389,7 @@ export const Home = ({ filter, setFilter, onNew, onOpen, onFinish, onAnnual, onS
       </header>
 
       <${Hero} filter=${filter} onAnnual=${onAnnual} />
+      <${Retalhos} onGo=${onGo} />
       <${Alerts} onGo=${onGo} />
 
       <div class="seg filter-seg" role="tablist">

@@ -30,10 +30,8 @@ const App = () => {
     }
   });
   const [modal, setModal] = useState(null);
-  const [exitAsk, setExitAsk] = useState(false);
   const [splash, setSplash] = useState(true);
   const [focus, setFocus] = useState(null);
-  const [update, setUpdate] = useState(null);
 
   const setFilter = (f) => {
     setFilterState(f);
@@ -80,44 +78,46 @@ const App = () => {
 
   // Trava a rolagem do fundo quando há janela aberta
   useEffect(() => {
-    document.body.classList.toggle('locked', !!modal || exitAsk);
-  }, [modal, exitAsk]);
+    document.body.classList.toggle('locked', !!modal);
+  }, [modal]);
 
   // ---------- Botão voltar do celular ----------
+  // Na tela inicial, sair pede dois "voltar" seguidos (sem aviso na tela): o primeiro só
+  // desarma a proteção por 2 s; se vier outro nesse tempo, o próprio celular fecha o app.
   const stateRef = useRef({});
-  stateRef.current = { modal, tab, exitAsk };
-  const exiting = useRef(false);
+  stateRef.current = { modal, tab };
 
   useEffect(() => {
+    let armed = true;
+    let timer = null;
+    const arm = () => {
+      clearTimeout(timer);
+      if (armed) return;
+      armed = true;
+      history.pushState({ app: true }, '');
+    };
     history.replaceState({ root: true }, '');
     history.pushState({ app: true }, '');
     const onPop = () => {
-      if (exiting.current) return;
       const s = stateRef.current;
       if (document.querySelector('.overlay.center')) {
         // Um diálogo de confirmação está aberto: deixa o próprio diálogo tratar (clicar fora fecha)
         document.querySelector('.overlay.center')?.click();
       } else if (s.modal) setModal(null);
-      else if (s.exitAsk) setExitAsk(false);
       else if (s.tab !== 'inicio') setTab('inicio');
-      else setExitAsk(true);
+      else {
+        armed = false;
+        timer = setTimeout(arm, 2000);
+        return;
+      }
       history.pushState({ app: true }, '');
     };
     window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
-
-  const exitApp = () => {
-    exiting.current = true;
-    setExitAsk(false);
-    history.go(-2);
-  };
-
-  // ---------- Atualização do app (service worker) ----------
-  useEffect(() => {
-    const onUpdate = (e) => setUpdate(() => e.detail);
-    window.addEventListener('sw-update', onUpdate);
-    return () => window.removeEventListener('sw-update', onUpdate);
+    window.addEventListener('pointerdown', arm);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('pointerdown', arm);
+    };
   }, []);
 
   // ---------- Ações ----------
@@ -181,19 +181,6 @@ const App = () => {
       ${modal?.type === 'annual' && html`<${Annual} onClose=${() => setModal(null)} />`}
       ${modal?.type === 'receber' && html`<${ReceberSheet} onClose=${() => setModal(null)} onOpenLote=${openLote} />`}
 
-      ${exitAsk && html`
-        <div class="overlay center" onClick=${() => setExitAsk(false)}>
-          <div class="dialog pop" onClick=${(e) => e.stopPropagation()}>
-            <h3>Sair do app?</h3>
-            <div class="row gap">
-              <button class="btn ghost grow" onClick=${() => setExitAsk(false)}>Cancelar</button>
-              <button class="btn primary grow" onClick=${exitApp}>Sair</button>
-            </div>
-          </div>
-        </div>`}
-
-      ${update && html`<button class="update-bar" onClick=${() => update()}>Nova versão disponível — toque para atualizar</button>`}
-
       <${DialogHost} />
       <${ToastHost} />
     </div>`;
@@ -201,28 +188,34 @@ const App = () => {
 
 render(html`<${App} />`, document.getElementById('app'));
 
+// ---------- Sem selecionar nem copiar textos (só nos campos de digitar) ----------
+const isField = (el) => el?.closest?.('input, textarea, select, [contenteditable="true"]');
+['selectstart', 'copy', 'cut', 'contextmenu', 'dragstart'].forEach((ev) =>
+  document.addEventListener(ev, (e) => {
+    if (!isField(e.target)) e.preventDefault();
+  }),
+);
+
 // ---------- Service worker (funcionar offline) ----------
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => {
     navigator.serviceWorker
-      .register('sw.js')
+      .register('sw.js', { updateViaCache: 'none' })
       .then((reg) => {
-        const announce = (worker) =>
-          window.dispatchEvent(new CustomEvent('sw-update', { detail: () => worker.postMessage('skipWaiting') }));
-        if (reg.waiting && navigator.serviceWorker.controller) announce(reg.waiting);
-        reg.addEventListener('updatefound', () => {
-          const w = reg.installing;
-          w?.addEventListener('statechange', () => {
-            if (w.state === 'installed' && navigator.serviceWorker.controller) announce(w);
-          });
+        reg.waiting?.postMessage('skipWaiting');
+        // Ao voltar para o app (estava em segundo plano), procura versão nova
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });
       })
       .catch((e) => console.warn('Service worker não registrado', e));
+    // Versão nova instalada: recarrega sozinho, mas nunca no meio de um formulário ou janela aberta
     let reloaded = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (reloaded) return;
       reloaded = true;
-      location.reload();
+      const tryReload = () => (document.querySelector('.overlay') ? setTimeout(tryReload, 1500) : location.reload());
+      tryReload();
     });
   });
 }
