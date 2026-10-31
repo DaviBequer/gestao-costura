@@ -14,7 +14,7 @@ export const DEFAULT_SETTINGS = {
   adicionalPadrao: 20, // R$ 0,20 por peça tam. 6/8
   tamanhos: [2, 3, 4, 6, 8],
   whatsapp: '',
-  tema: 'auto',
+  tema: 'claro',
   declaracoes: {}, // { '2026': { 0: centavos, 1: ... } }
   ultimoBackup: null,
   versiculo: true,
@@ -158,7 +158,15 @@ export const normalizeLote = (l) => ({
   tamanhos: Array.isArray(l.tamanhos) ? l.tamanhos : [],
 });
 
-export const normalizeSettings = (s) => ({ ...DEFAULT_SETTINGS, ...(s || {}) });
+export const normalizeSettings = (s) => {
+  const out = { ...DEFAULT_SETTINGS, ...(s || {}) };
+  // Tema claro virou o padrão: quem ainda estava no "Auto" antigo passa para o claro (uma vez só)
+  if (!out.temaClaroPadrao) {
+    if (out.tema === 'auto') out.tema = 'claro';
+    out.temaClaroPadrao = true;
+  }
+  return out;
+};
 
 /** Monta o objeto de backup */
 export const buildBackup = ({ lotes, despesas, settings }) => ({

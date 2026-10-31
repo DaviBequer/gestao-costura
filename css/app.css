@@ -1269,9 +1269,9 @@ button.retalho:active { transform: scale(0.97); }
 :root[data-theme='dark'] .tab.on { color: #e3a19a; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .tab.on { color: #e3a19a; } }
 
-/* Abertura: beija-flor batendo as asas sobre o preto e uma linha de pesponto correndo */
-.splash { background: #110d0c; gap: 30px; }
-.ave { position: relative; width: 210px; height: 210px; animation: pairar 1.6s ease-in-out infinite; }
+/* Abertura: beija-flor batendo as asas sobre o preto e uma onda correndo */
+.splash { background: #110d0c; gap: 26px; }
+.ave { position: relative; width: 210px; height: 210px; animation: pairar 2.6s ease-in-out infinite; }
 .ave-voo { position: absolute; left: 0; top: 0; width: 512px; height: 512px; transform-origin: 0 0; transform: scale(0.41); }
 .splash .ave-voo img {
   position: absolute; left: 0; top: 0; width: 512px; height: 512px; max-width: none;
@@ -1280,16 +1280,31 @@ button.retalho:active { transform: scale(0.97); }
 .splash .ave-corpo { clip-path: path(evenodd, 'M0 0H512V512H0Z M95 95L290 95L285 195L265 240L200 250L95 200Z'); }
 .splash .ave-voo .ave-asa {
   clip-path: polygon(95px 95px, 290px 95px, 285px 195px, 265px 240px, 200px 250px, 95px 200px);
-  transform-origin: 270px 228px; animation: bater-asa 0.17s ease-in-out infinite alternate;
+  transform-origin: 270px 228px; animation: bater-asa 0.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
-@keyframes bater-asa { from { transform: none; } to { transform: rotate(10deg) scaleY(0.3); } }
-@keyframes pairar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-.splash-linha { width: 140px; height: 8px; overflow: visible; }
-.splash-linha line { stroke: #ecb6a4; stroke-opacity: 0.8; stroke-width: 2; stroke-dasharray: 7 4; stroke-linecap: round; animation: correr 0.9s linear infinite; }
+/* Batida suave: desce devagar, volta abrindo, com uma leve folga no alto */
+@keyframes bater-asa {
+  0%, 100% { transform: rotate(-2deg) scaleY(1.03); }
+  50% { transform: rotate(7deg) scaleY(0.45); }
+}
+@keyframes pairar {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  30% { transform: translateY(-6px) rotate(-1.5deg); }
+  65% { transform: translateY(-9px) rotate(1deg); }
+}
+.splash-onda {
+  width: 168px; height: 26px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+}
+.splash-onda path { fill: none; stroke: #ecb6a4; stroke-width: 2; stroke-linecap: round; }
+.onda-1 { animation: onda 1.8s linear infinite; }
+.onda-2 { stroke-opacity: 0.4; animation: onda 2.9s linear infinite reverse; }
+@keyframes onda { from { transform: translateX(0); } to { transform: translateX(-40px); } }
 .home-logo, .set-logo { background: #110d0c; }
 
 @media (prefers-reduced-motion: reduce) {
-  .pesp-revela, .pesp-agulha, .pesp-bate, .fio-feito, .fio-agulha, .home-linha path, .lrow-bar i, .ave, .ave-asa { animation: none; }
+  .pesp-revela, .pesp-agulha, .pesp-bate, .fio-feito, .fio-agulha, .home-linha path, .lrow-bar i, .ave, .ave-asa, .onda-1, .onda-2 { animation: none; }
   .pesp-revela { stroke-dashoffset: 0; }
   .pesp-agulha { display: none; }
 }
