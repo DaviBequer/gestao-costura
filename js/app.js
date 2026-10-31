@@ -45,7 +45,7 @@ const App = () => {
   // ---------- Inicialização ----------
   useEffect(() => {
     const t0 = Date.now();
-    init().then(() => setTimeout(() => setSplash(false), Math.max(0, 700 - (Date.now() - t0))));
+    init().then(() => setTimeout(() => setSplash(false), Math.max(0, 1300 - (Date.now() - t0))));
   }, []);
 
   // Dados vieram do app antigo neste mesmo navegador: pergunta sobre pagamentos
@@ -140,9 +140,15 @@ const App = () => {
   };
 
   if (splash || !st.ready) {
-    return html`<div class="splash">
-      <img src=${st.settings.logo || 'icons/icon-192.png'} alt="" />
-      <div class="splash-bar"><span></span></div>
+    // Mesmo desenho do index.html, para a troca ser invisível
+    return html`<div class="splash" role="status" aria-label="Carregando">
+      <div class="ave" aria-hidden="true">
+        <div class="ave-voo">
+          <img class="ave-corpo" src="icons/bird.png" alt="" />
+          <img class="ave-asa" src="icons/bird.png" alt="" />
+        </div>
+      </div>
+      <svg class="splash-linha" viewBox="0 0 140 8" aria-hidden="true"><line x1="4" y1="4" x2="136" y2="4" /></svg>
     </div>`;
   }
 

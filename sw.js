@@ -1,7 +1,7 @@
 // Service worker: guarda o app no aparelho para funcionar sem internet.
 // Com internet, sempre busca a versão mais nova (o app abre já atualizado, sem botão).
 // Ao mudar qualquer arquivo do app, aumente a VERSAO para os celulares trocarem a cópia guardada.
-const VERSAO = 'costura-v2.0.23';
+const VERSAO = 'costura-v2.0.24';
 const DEV = ['localhost', '127.0.0.1'].includes(self.location.hostname);
 
 const ARQUIVOS = [
@@ -30,6 +30,7 @@ const ARQUIVOS = [
   'icons/icon-180.png',
   'icons/icon-192.png',
   'icons/icon-512.png',
+  'icons/bird.png',
 ];
 
 self.addEventListener('install', (e) => {

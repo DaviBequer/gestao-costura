@@ -1190,12 +1190,12 @@ body {
 .mc-week.current small { color: #e7c7a0; }
 
 .hero > .pesponto { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 2; overflow: visible; }
-.pesp-revela { fill: none; stroke: #fff; stroke-width: 6; stroke-dasharray: 100 100; stroke-dashoffset: 100; animation: costurar 7s linear infinite; }
+.pesp-revela { fill: none; stroke: #fff; stroke-width: 6; stroke-dasharray: 100 100; stroke-dashoffset: 100; animation: costurar 16s linear infinite; }
 @keyframes costurar { 0% { stroke-dashoffset: 100; } 80%, 100% { stroke-dashoffset: 0; } }
 .pesp-linha { fill: none; stroke: #fbf4ea; stroke-opacity: 0.75; stroke-width: 1.6; stroke-dasharray: 6 5; stroke-linecap: round; }
-.pesp-agulha { offset-rotate: 0deg; animation: andar 7s linear infinite; }
+.pesp-agulha { offset-rotate: 0deg; animation: andar 16s linear infinite; }
 @keyframes andar { 0% { offset-distance: 0%; opacity: 1; } 80% { offset-distance: 100%; opacity: 1; } 84%, 100% { offset-distance: 100%; opacity: 0; } }
-.pesp-bate { animation: bater 0.14s ease-in-out infinite alternate; }
+.pesp-bate { animation: bater 0.24s ease-in-out infinite alternate; }
 .pesp-bate line { stroke: #e8e2d8; stroke-width: 2; stroke-linecap: round; }
 .pesp-bate circle { fill: #e7c7a0; }
 @keyframes bater { from { transform: translateY(-6px); } to { transform: translateY(0); } }
@@ -1269,8 +1269,27 @@ button.retalho:active { transform: scale(0.97); }
 :root[data-theme='dark'] .tab.on { color: #e3a19a; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .tab.on { color: #e3a19a; } }
 
+/* Abertura: beija-flor batendo as asas sobre o preto e uma linha de pesponto correndo */
+.splash { background: #110d0c; gap: 30px; }
+.ave { position: relative; width: 210px; height: 210px; animation: pairar 1.6s ease-in-out infinite; }
+.ave-voo { position: absolute; left: 0; top: 0; width: 512px; height: 512px; transform-origin: 0 0; transform: scale(0.41); }
+.splash .ave-voo img {
+  position: absolute; left: 0; top: 0; width: 512px; height: 512px; max-width: none;
+  border-radius: 0; background: none; padding: 0; animation: none;
+}
+.splash .ave-corpo { clip-path: path(evenodd, 'M0 0H512V512H0Z M95 95L290 95L285 195L265 240L200 250L95 200Z'); }
+.splash .ave-voo .ave-asa {
+  clip-path: polygon(95px 95px, 290px 95px, 285px 195px, 265px 240px, 200px 250px, 95px 200px);
+  transform-origin: 270px 228px; animation: bater-asa 0.17s ease-in-out infinite alternate;
+}
+@keyframes bater-asa { from { transform: none; } to { transform: rotate(10deg) scaleY(0.3); } }
+@keyframes pairar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.splash-linha { width: 140px; height: 8px; overflow: visible; }
+.splash-linha line { stroke: #ecb6a4; stroke-opacity: 0.8; stroke-width: 2; stroke-dasharray: 7 4; stroke-linecap: round; animation: correr 0.9s linear infinite; }
+.home-logo, .set-logo { background: #110d0c; }
+
 @media (prefers-reduced-motion: reduce) {
-  .pesp-revela, .pesp-agulha, .pesp-bate, .fio-feito, .fio-agulha, .home-linha path, .lrow-bar i { animation: none; }
+  .pesp-revela, .pesp-agulha, .pesp-bate, .fio-feito, .fio-agulha, .home-linha path, .lrow-bar i, .ave, .ave-asa { animation: none; }
   .pesp-revela { stroke-dashoffset: 0; }
   .pesp-agulha { display: none; }
 }
