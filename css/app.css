@@ -1238,7 +1238,7 @@ button.retalho:active { transform: scale(0.97); }
 .lrow-info h4 { font-size: 18px; font-weight: 800; }
 .hash { color: var(--gold); }
 .lrow-when em { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
-.lrow-when em.ok { background: var(--ok-bg); color: var(--ok); }
+.lrow-when em.tempo { background: var(--surface-2); color: var(--text-2); }
 .lrow-when em.hoje, .lrow-when em.proximo { background: var(--warn-bg); color: var(--warn); }
 .lrow-when em.atrasado { background: var(--danger-bg); color: var(--danger); }
 .lrow-prog { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }

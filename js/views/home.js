@@ -5,7 +5,7 @@ import { Icon, Sheet, MoneyInput, Empty, confirmDialog, run, tipoIcon } from '..
 import { brl, brl0, dm, fmtRef, MESES, daysInMonth, daysBetween, today, num } from '../util.js';
 import {
   FILTERS, applyFilter, filterMonth, finishedInMonth, openLotes, loteValue, lotePieces, weeksOfMonth, currentWeekIndex,
-  prazoInfo, totalAReceber, isFinal, TIPO_LABEL,
+  totalAReceber, isFinal, TIPO_LABEL,
 } from '../calc.js';
 import { useStore, updateSettings, deleteLote, setPago } from '../store.js';
 
@@ -202,22 +202,6 @@ const Hero = ({ filter, onAnnual }) => {
     </section>`;
 };
 
-// ---------- Alertas ----------
-
-const Alerts = ({ onGo }) => {
-  const { lotes } = useStore();
-  const hoje = today();
-  const prazos = openLotes(lotes).map((l) => prazoInfo(l, hoje)).filter(Boolean);
-  const atrasados = prazos.filter((p) => p.tipo === 'atrasado').length;
-  const proximos = prazos.filter((p) => p.tipo === 'hoje' || p.tipo === 'proximo').length;
-
-  const items = [];
-  if (atrasados) items.push(html`<button class="alert danger" onClick=${() => onGo('atrasados')}><${Icon} name="alert" size=${15} /> ${atrasados} atrasado${atrasados > 1 ? 's' : ''}</button>`);
-  if (proximos) items.push(html`<button class="alert warn" onClick=${() => onGo('atrasados')}><${Icon} name="clock" size=${15} /> ${proximos} vence${proximos > 1 ? 'm' : ''} logo</button>`);
-  if (!items.length) return null;
-  return html`<div class="alerts">${items}</div>`;
-};
-
 // ---------- Retalhos: produção, peças e a receber ----------
 
 const Retalhos = ({ onGo }) => {
@@ -237,17 +221,18 @@ const LoteRow = ({ lote, onOpen, onFinish, swiped, setSwiped }) => {
   const start = useRef(null);
   const [drag, setDrag] = useState(0);
   const [verFoto, setVerFoto] = useState(false);
-  const prazo = prazoInfo(lote);
   const fin = isFinal(lote);
   const offset = drag || (swiped ? -88 : 0);
 
-  // Tempo na máquina e quanto do prazo já passou (verde → amarelo → vermelho)
-  let prog = null;
-  if (!fin && lote.dataInicio) {
-    const dias = Math.max(0, daysBetween(lote.dataInicio, today()));
-    const total = lote.dataPrevista ? Math.max(1, daysBetween(lote.dataInicio, lote.dataPrevista)) : 0;
-    const tom = !prazo ? '' : prazo.tipo === 'atrasado' ? 'atraso' : prazo.tipo === 'ok' ? 'ok' : 'perto';
-    prog = { dias, pct: total ? Math.min(100, Math.round((dias / total) * 100)) : 0, tom };
+  // Em produção: há quanto tempo começou. Finalizado: em quanto tempo ficou pronto.
+  const dias = (n) => `${n} dia${n === 1 ? '' : 's'}`;
+  let tempo = null;
+  if (lote.dataInicio && fin && lote.dataFim) {
+    const n = Math.max(0, daysBetween(lote.dataInicio, lote.dataFim));
+    tempo = n === 0 ? 'Finalizado no mesmo dia' : `Finalizado em ${dias(n)}`;
+  } else if (lote.dataInicio && !fin) {
+    const n = Math.max(0, daysBetween(lote.dataInicio, today()));
+    tempo = n === 0 ? 'Começou hoje' : `Há ${dias(n)} na máquina`;
   }
 
   const touchStart = (e) => {
@@ -283,7 +268,7 @@ const LoteRow = ({ lote, onOpen, onFinish, swiped, setSwiped }) => {
   return html`
     <div class=${'swipe-wrap' + (offset < 0 ? ' open' : '')}>
       <button class="swipe-del" onClick=${remove} aria-label="Excluir lote"><${Icon} name="trash" /><small>Excluir</small></button>
-      <article class=${'lrow' + (fin ? ' fin' : '') + (prazo?.tipo === 'atrasado' ? ' late' : '')}
+      <article class=${'lrow' + (fin ? ' fin' : '')}
         style=${`transform:translateX(${offset}px);${drag ? 'transition:none' : ''}`}
         onClick=${() => (swiped ? setSwiped(null) : onOpen(lote))}
         onTouchStart=${touchStart} onTouchMove=${touchMove} onTouchEnd=${touchEnd}>
@@ -294,9 +279,8 @@ const LoteRow = ({ lote, onOpen, onFinish, swiped, setSwiped }) => {
           <h4><span class="hash">#</span>${fmtRef(lote.ref)}</h4>
           <span class="lrow-sub">${TIPO_LABEL[lote.tipo]} · ${num(lotePieces(lote))} pçs</span>
           <span class="lrow-when">
-            ${prazo
-              ? html`<em class=${prazo.tipo}>${prazo.texto}</em>`
-              : fin ? `Entregue ${dm(lote.dataFim)}` : lote.dataPrevista ? `Prazo ${dm(lote.dataPrevista)}` : `Início ${dm(lote.dataInicio)}`}
+            ${tempo && html`<em class="tempo">${tempo}</em>`}
+            ${fin ? ` · ${dm(lote.dataFim)}` : !tempo ? `Início ${dm(lote.dataInicio)}` : ''}
           </span>
         </div>
         <div class="lrow-end">
@@ -305,14 +289,6 @@ const LoteRow = ({ lote, onOpen, onFinish, swiped, setSwiped }) => {
             ? html`<button class=${'tag-btn ' + (lote.pago ? 'paid' : 'due')} onClick=${togglePago}>${lote.pago ? '✓ Pago' : 'A receber'}</button>`
             : html`<button class="tag-btn finish" onClick=${(e) => { e.stopPropagation(); onFinish(lote); }}><${Icon} name="check" size=${12} stroke=${3} /> Finalizar</button>`}
         </div>
-        ${prog && html`
-          <div class=${'lrow-prog ' + prog.tom}>
-            ${lote.dataPrevista && html`<div class="lrow-bar"><i style=${`width:${prog.pct}%`}></i></div>`}
-            <div class="lrow-prog-foot">
-              <span>${prog.dias === 0 ? 'Começou hoje' : `Há ${prog.dias} dia${prog.dias > 1 ? 's' : ''} na máquina`}</span>
-              ${lote.dataPrevista && html`<span>Entrega prevista ${dm(lote.dataPrevista)}</span>`}
-            </div>
-          </div>`}
       </article>
       ${verFoto && html`
         <div class="overlay center photo-view" onClick=${() => setVerFoto(false)}>
@@ -390,7 +366,6 @@ export const Home = ({ filter, setFilter, onNew, onOpen, onFinish, onAnnual, onS
 
       <${Hero} filter=${filter} onAnnual=${onAnnual} />
       <${Retalhos} onGo=${onGo} />
-      <${Alerts} onGo=${onGo} />
 
       <div class="seg filter-seg" role="tablist">
         ${FILTERS.map((f) => html`<button role="tab" aria-selected=${filter === f.id} class=${filter === f.id ? 'on' : ''} onClick=${() => setFilter(f.id)}>${SHORT_FILTER[f.id]}</button>`)}
