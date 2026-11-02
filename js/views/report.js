@@ -92,7 +92,7 @@ export const Report = ({ initial, onClose }) => {
       const r = await shareOrDownload(blob, name, 'Relatório de produção', `Relatório de ${periodLabel}`);
       if (r === 'downloaded') {
         // Sem compartilhamento de arquivo (computador): abre a conversa com o número dos Ajustes para anexar o PDF
-        const phone = (settings.whatsapp || '').replace(/D/g, '');
+        const phone = (settings.whatsapp || '').replace(/\D/g, '');
         if (phone) {
           const txt = `Segue o relatório de ${periodLabel} (${brl(total)}). O PDF foi salvo no aparelho, é só anexar.`;
           window.open(`https://wa.me/${phone.length <= 11 ? '55' + phone : phone}?text=${encodeURIComponent(txt)}`, '_blank');
