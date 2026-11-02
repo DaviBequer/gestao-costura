@@ -75,6 +75,10 @@ export const confirmDialog = (opts) =>
     dialogSetter({ ...opts, resolve });
   });
 
+/** Pergunta antes de apagar um lote (a mesma mensagem em todo o app) */
+export const confirmarExclusao = (lote) =>
+  confirmDialog({ title: 'Excluir lote?', text: `O lote #${lote.ref} será apagado. Isso não pode ser desfeito.`, ok: 'Excluir', danger: true, icon: 'trash' });
+
 export const DialogHost = () => {
   const [d, setD] = useState(null);
   dialogSetter = setD;

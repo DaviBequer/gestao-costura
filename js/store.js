@@ -4,7 +4,8 @@
 import { useEffect, useState } from '../vendor/preact-htm.js';
 import * as db from './db.js';
 import { STORES } from './db.js';
-import { DEFAULT_SETTINGS, normalizeLote, normalizeSettings, readLegacyLocalStorage, markLegacyMigrated, buildBackup, parseBackup } from './migrate.js';
+import { DEFAULT_SETTINGS, normalizeSettings, readLegacyLocalStorage, markLegacyMigrated, buildBackup, parseBackup } from './migrate.js';
+import { normalizar, marcarPago } from './lote.js';
 import { uid, today } from './util.js';
 
 const state = {
@@ -59,7 +60,7 @@ export const init = async () => {
 
     set({
       ready: true,
-      lotes: lotes.map(normalizeLote),
+      lotes: lotes.map(normalizar),
       despesas,
       settings: normalizeSettings(settings),
       legacyImported,
@@ -75,7 +76,7 @@ export const init = async () => {
 
 export const saveLote = async (lote) => {
   const now = new Date().toISOString();
-  const l = normalizeLote({ ...lote, id: lote.id || uid(), criadoEm: lote.criadoEm || now, atualizadoEm: now });
+  const l = normalizar({ ...lote, id: lote.id || uid(), criadoEm: lote.criadoEm || now, atualizadoEm: now });
   await db.put(STORES.lotes, l);
   const exists = state.lotes.some((x) => x.id === l.id);
   set({ lotes: exists ? state.lotes.map((x) => (x.id === l.id ? l : x)) : [l, ...state.lotes] });
@@ -93,7 +94,7 @@ export const setPago = async (ids, pago) => {
   for (const id of list) {
     const l = state.lotes.find((x) => x.id === id);
     if (!l) continue;
-    const n = { ...l, pago, dataPagamento: pago ? today() : null, atualizadoEm: new Date().toISOString() };
+    const n = { ...marcarPago(l, pago, today()), atualizadoEm: new Date().toISOString() };
     await db.put(STORES.lotes, n);
     updated.push(n);
   }

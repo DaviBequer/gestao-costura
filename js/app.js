@@ -3,7 +3,6 @@
 import { html, render, useState, useEffect, useRef } from '../vendor/preact-htm.js';
 import { Icon, ToastHost, DialogHost, confirmDialog, toast } from './ui.js';
 import { useStore, init, setPago, getState } from './store.js';
-import { isFinal } from './calc.js';
 import { Home, SearchSheet } from './views/home.js';
 import { LoteForm } from './views/loteForm.js';
 import { ReceberSheet } from './views/finance.js';
@@ -52,7 +51,7 @@ const App = () => {
   useEffect(() => {
     if (!st.ready || splash || !st.legacyImported) return;
     st.legacyImported = false;
-    const semInfo = getState().lotes.filter((l) => isFinal(l) && l.pago === undefined);
+    const semInfo = getState().lotes.filter((l) => l.pagamentoAConfirmar);
     toast('Seus dados do app antigo foram trazidos!');
     if (semInfo.length)
       confirmDialog({

@@ -2,7 +2,8 @@
 // e geração/leitura dos arquivos de backup.
 
 import { toCents, isoToLocalDate, today, uid } from './util.js';
-import { partsForTipo, EXTRA_SIZES } from './calc.js';
+import { partsForTipo, partQty, partExtraQty } from './calc.js';
+import { montar, finalizar, normalizar } from './lote.js';
 
 export const BACKUP_APP = 'Gestão Costura';
 export const BACKUP_VERSION = '2.0.0';
@@ -88,41 +89,40 @@ export const fromV1Lote = (o) => {
   // Recupera preço zerado (bug antigo) a partir do valor total salvo
   const zeradas = Object.keys(partes).filter((k) => !partes[k].preco);
   if (zeradas.length === 1 && o.valorTotal > 0) {
+    const conta = { status: finalizado ? 'finalizado' : 'em_andamento', partes };
+    const valorParte = (x) => partQty(conta, x) * partes[x].preco + (cobra ? partExtraQty(conta, x) * adicional : 0);
     const k = zeradas[0];
-    const totalCents = toCents(o.valorTotal);
-    const outros = Object.keys(partes)
-      .filter((x) => x !== k)
-      .reduce((a, x) => a + qtyOf(partes[x], finalizado) * partes[x].preco + (cobra ? extraOf(partes[x], finalizado) * adicional : 0), 0);
-    const qty = qtyOf(partes[k], finalizado);
-    const extra = cobra ? extraOf(partes[k], finalizado) * adicional : 0;
-    if (qty > 0) partes[k].preco = Math.max(0, Math.round((totalCents - outros - extra) / qty));
+    const outros = Object.keys(partes).filter((x) => x !== k).reduce((a, x) => a + valorParte(x), 0);
+    const qty = partQty(conta, k);
+    const extra = cobra ? partExtraQty(conta, k) * adicional : 0;
+    if (qty > 0) partes[k].preco = Math.max(0, Math.round((toCents(o.valorTotal) - outros - extra) / qty));
   }
 
+  // Tamanho com peças (planejadas 6/8 ou conferidas) entra na lista, para o Lote não descartar nada
+  const tamanhos = new Set(Array.isArray(o.tamanhos) ? o.tamanhos.map(Number) : []);
+  Object.values(partes).forEach((p) => {
+    if (p.plan.t6) tamanhos.add(6);
+    if (p.plan.t8) tamanhos.add(8);
+    Object.keys(p.real || {}).forEach((s) => tamanhos.add(Number(s)));
+  });
+
   const dataInicio = isoToLocalDate(o.dataInicio) || today();
-  return {
-    id: o.id || uid(),
+  const agora = new Date().toISOString();
+  const dados = {
     ref: String(o.referencia || ''),
     tipo,
-    tamanhos: Array.isArray(o.tamanhos) ? o.tamanhos.map(Number) : [],
-    cliente: '',
-    obs: '',
-    partes,
+    tamanhos: [...tamanhos],
+    partes: Object.fromEntries(Object.entries(partes).map(([k, p]) => [k, { preco: p.preco, ...p.plan, real: p.real }])),
     cobraAdicional: cobra,
     adicional,
-    status: finalizado ? 'finalizado' : 'em_andamento',
     dataInicio,
-    dataPrevista: null,
-    dataFim: finalizado ? isoToLocalDate(o.dataFim) || dataInicio : null,
-    pago: undefined, // decidido pelo usuário após a importação
-    dataPagamento: null,
     foto: typeof o.foto === 'string' ? o.foto : null,
-    criadoEm: new Date().toISOString(),
-    atualizadoEm: new Date().toISOString(),
   };
+  const lote = montar(dados, { id: o.id || uid(), criadoEm: agora, atualizadoEm: agora });
+  if (!finalizado) return lote;
+  // O app antigo não controlava pagamento: fica a confirmar até a pessoa responder
+  return { ...finalizar(lote, { dataFim: isoToLocalDate(o.dataFim) || dataInicio }, today()), pagamentoAConfirmar: true };
 };
-
-const qtyOf = (p, fin) => (fin && p.real ? Object.values(p.real).reduce((a, b) => a + b, 0) : p.plan.total);
-const extraOf = (p, fin) => (fin && p.real ? EXTRA_SIZES.reduce((a, s) => a + (p.real[s] || 0), 0) : p.plan.t6 + p.plan.t8);
 
 export const fromV1Settings = (s = {}) => {
   const declaracoes = {};
@@ -142,21 +142,6 @@ export const fromV1Settings = (s = {}) => {
     declaracoes,
   };
 };
-
-/** Normaliza um lote v2 (garante campos que podem faltar) */
-export const normalizeLote = (l) => ({
-  cliente: '',
-  obs: '',
-  dataPrevista: null,
-  dataFim: null,
-  pago: false,
-  dataPagamento: null,
-  foto: null,
-  cobraAdicional: true,
-  adicional: 20,
-  ...l,
-  tamanhos: Array.isArray(l.tamanhos) ? l.tamanhos : [],
-});
 
 export const normalizeSettings = (s) => {
   const out = { ...DEFAULT_SETTINGS, ...(s || {}) };
@@ -194,14 +179,14 @@ export const parseBackup = (raw) => {
   const isV1 = String(json.version || '').startsWith('1') || lotes.some(isV1Lote);
   if (isV1) {
     return {
-      lotes: lotes.map((l) => (isV1Lote(l) ? fromV1Lote(l) : normalizeLote(l))),
+      lotes: lotes.map((l) => (isV1Lote(l) ? fromV1Lote(l) : normalizar(l))),
       despesas: [],
       settings: fromV1Settings(settings),
       fromV1: true,
     };
   }
   return {
-    lotes: lotes.map(normalizeLote),
+    lotes: lotes.map(normalizar),
     despesas: Array.isArray(despesas) ? despesas : [],
     settings: normalizeSettings(settings),
     fromV1: false,

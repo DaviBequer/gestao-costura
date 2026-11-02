@@ -1,9 +1,10 @@
 // Ajustes: aparência, regras dos lotes, backup/restauração, verificação de dados.
 
 import { html, useState, useRef, useEffect } from '../../vendor/preact-htm.js';
-import { Icon, Sheet, MoneyInput, confirmDialog, toast, run } from '../ui.js';
+import { Icon, Sheet, MoneyInput, confirmDialog, confirmarExclusao, toast, run } from '../ui.js';
 import { brl, dmy, fmtRef, readFileText, resizeImage, downloadBlob, num } from '../util.js';
-import { loteProblems, loteValue, lotePieces, TIPO_LABEL, isFinal } from '../calc.js';
+import { loteValue, lotePieces, TIPO_LABEL, isFinal } from '../calc.js';
+import { problemas } from '../lote.js';
 import { useStore, updateSettings, exportBackup, restoreBackup, clearEverything, deleteLote, setPago, getState } from '../store.js';
 import { storageEstimate } from '../db.js';
 
@@ -13,7 +14,7 @@ const ALL_SIZES = [1, 2, 3, 4, 6, 8, 10, 12, 14, 16];
 
 const DataCheck = ({ onClose, onOpen }) => {
   const { lotes } = useStore();
-  const withProblems = lotes.map((l) => ({ l, p: loteProblems(l) })).sort((a, b) => b.p.length - a.p.length);
+  const withProblems = lotes.map((l) => ({ l, p: problemas(l) })).sort((a, b) => b.p.length - a.p.length);
   const bad = withProblems.filter((x) => x.p.length).length;
   return html`<${Sheet} title="Verificar dados" onClose=${onClose}>
     <p class=${'note ' + (bad ? 'warn' : 'ok')}>${bad ? `${bad} lote(s) com algo a revisar.` : lotes.length === 1 ? 'Tudo certo com o lote.' : `Tudo certo com os ${lotes.length} lotes.`}</p>
@@ -26,7 +27,7 @@ const DataCheck = ({ onClose, onOpen }) => {
             ${p.map((t) => html`<em>⚠ ${t}</em>`)}
           </button>
           <button class="icon-btn sm danger" aria-label="Excluir" onClick=${async () => {
-            if (await confirmDialog({ title: 'Excluir lote?', text: `#${l.ref} será apagado permanentemente.`, ok: 'Excluir', danger: true, icon: 'trash' }))
+            if (await confirmarExclusao(l))
               run(() => deleteLote(l.id), 'Lote excluído');
           }}><${Icon} name="trash" size=${16} /></button>
         </div>`)}
@@ -97,7 +98,7 @@ export const Settings = ({ onOpenLote, focus, onBack }) => {
     if (!res) return;
     toast(`${res.total} lote(s) restaurado(s)`);
     // Backup do app antigo não tinha "pago": pergunta o que fazer com os finalizados
-    const semInfo = getState().lotes.filter((l) => isFinal(l) && l.pago === undefined);
+    const semInfo = getState().lotes.filter((l) => l.pagamentoAConfirmar);
     if (semInfo.length) {
       const todosPagos = await confirmDialog({
         title: 'Lotes antigos já foram pagos?',

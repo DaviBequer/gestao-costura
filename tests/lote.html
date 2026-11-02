@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Testes do Lote</title>
+  <style>
+    body { margin: 0; padding: 20px; font: 14px/1.45 system-ui, sans-serif; background: #f4ece1; color: #3b2a22; }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    #resumo { font-weight: 700; padding: 10px 12px; border-radius: 10px; margin-bottom: 14px; }
+    #resumo.ok { background: #e3ecd6; color: #3f6b35; }
+    #resumo.falhou { background: #f5d6cf; color: #9b2f22; }
+    li { margin: 3px 0; list-style: none; }
+    li.ok::before { content: '✓ '; color: #3f6b35; }
+    li.falhou { color: #9b2f22; font-weight: 600; }
+    li.falhou::before { content: '✗ '; }
+    pre { margin: 2px 0 8px 18px; font-size: 12px; white-space: pre-wrap; color: #75604f; }
+  </style>
+</head>
+<body>
+  <h1>Testes do module Lote</h1>
+  <div id="resumo">Rodando…</div>
+  <ul id="lista"></ul>
+  <script type="module" src="lote.test.js"></script>
+</body>
+</html>

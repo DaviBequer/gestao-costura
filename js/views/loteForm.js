@@ -1,13 +1,14 @@
 // Formulário de lote: criar, editar, conferir (finalizar), reabrir, duplicar e excluir.
 
 import { html, useMemo, useState, useEffect, useRef } from '../../vendor/preact-htm.js';
-import { Icon, Sheet, MoneyInput, NumInput, Toggle, confirmDialog, toast, run, tipoIcon } from '../ui.js';
+import { Icon, Sheet, MoneyInput, NumInput, Toggle, confirmDialog, confirmarExclusao, toast, run, tipoIcon } from '../ui.js';
 import { brl, today, onlyDigits, resizeImage, dmy, dm, fmtRef } from '../util.js';
 import {
   partsForTipo, PART_LABEL, TIPO_LABEL, EXTRA_SIZES, loteValue, lotePieces, loteExtraValue, plannedPieces, plannedValue,
   partValue, partQty, lastPriceForRef,
 } from '../calc.js';
 import { saveLote, deleteLote, getState } from '../store.js';
+import { montar, finalizar, reabrir, duplicar, problemas } from '../lote.js';
 
 const DRAFT_KEY = 'costura_rascunho_lote';
 
@@ -39,7 +40,6 @@ const fromLote = (l, settings) => {
     adicional: l.adicional ?? settings.adicionalPadrao,
     partes,
     dataInicio: l.dataInicio || today(),
-    dataPrevista: l.dataPrevista || '',
     dataFim: l.dataFim || '',
     obs: l.obs || '',
     foto: l.foto || null,
@@ -58,47 +58,30 @@ const blank = (settings) => ({
   adicional: settings.adicionalPadrao,
   partes: { sup: emptyPart(), inf: emptyPart() },
   dataInicio: today(),
-  dataPrevista: '',
   dataFim: '',
   obs: '',
   foto: null,
   pago: false,
 });
 
-/** Monta o objeto lote a partir do formulário */
-const buildLote = (f, base, finalizado) => {
-  const partes = {};
-  partsForTipo(f.tipo).forEach((k) => {
-    const p = f.partes[k];
-    const has6 = f.tamanhos.includes(6) && f.cobra;
-    const has8 = f.tamanhos.includes(8) && f.cobra;
-    const real = {};
-    f.tamanhos.forEach((s) => {
-      if (p.real[s]) real[s] = p.real[s];
-    });
-    partes[k] = {
-      preco: p.preco || 0,
-      plan: { total: p.total || 0, t6: has6 ? p.t6 || 0 : 0, t8: has8 ? p.t8 || 0 : 0 },
-      real: Object.keys(real).length ? real : null,
-    };
-  });
-  return {
-    ...(base || {}),
-    ref: '0' + f.refNum + f.refChar,
-    tipo: f.tipo,
-    tamanhos: [...f.tamanhos].sort((a, b) => a - b),
-    partes,
-    cobraAdicional: f.cobra,
-    adicional: f.adicional,
-    status: finalizado ? 'finalizado' : 'em_andamento',
-    dataInicio: f.dataInicio || today(),
-    dataPrevista: f.dataPrevista || null,
-    dataFim: finalizado ? f.dataFim || today() : null,
-    obs: f.obs.trim(),
-    foto: f.foto,
-    pago: finalizado ? f.pago : false,
-    dataPagamento: finalizado && f.pago ? base?.dataPagamento || today() : null,
-  };
+/** Campos do formulário no formato que o Lote recebe */
+const paraDados = (f) => ({
+  ref: '0' + f.refNum + f.refChar,
+  tipo: f.tipo,
+  tamanhos: f.tamanhos,
+  partes: f.partes,
+  cobraAdicional: f.cobra,
+  adicional: f.adicional,
+  dataInicio: f.dataInicio || today(),
+  obs: f.obs,
+  foto: f.foto,
+  cliente: f.cliente,
+});
+
+/** Lote como ficaria ao salvar: na conferência, já finalizado */
+const doFormulario = (f, base, conferencia) => {
+  const l = montar(paraDados(f), base);
+  return conferencia ? finalizar(l, { dataFim: f.dataFim, pago: f.pago }, today()) : l;
 };
 
 /**
@@ -119,12 +102,7 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
       if (finish && !wasFinal) s.dataFim = today();
       return s;
     }
-    if (template) {
-      const s = fromLote(template, settings);
-      Object.assign(s, { dataInicio: today(), dataPrevista: '', dataFim: '', pago: false, obs: '' });
-      Object.values(s.partes).forEach((p) => (p.real = {}));
-      return s;
-    }
+    if (template) return fromLote(duplicar(template, today()), settings);
     try {
       const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
       if (d && d.tipo) return { ...blank(settings), ...d, step: 'form' };
@@ -158,7 +136,7 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
 
   const parts = f.tipo ? partsForTipo(f.tipo) : [];
   const ref = '0' + f.refNum + f.refChar;
-  const preview = useMemo(() => (f.tipo ? buildLote(f, lote, conferencia) : null), [f, conferencia]);
+  const preview = useMemo(() => (f.tipo ? doFormulario(f, lote, conferencia) : null), [f, conferencia]);
   const total = preview ? loteValue(preview) : 0;
   const extra = preview ? loteExtraValue(preview) : 0;
   const hasExtraSizes = f.tamanhos.some((s) => EXTRA_SIZES.includes(s));
@@ -167,32 +145,17 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
     [f.refNum, f.refChar, conferencia],
   );
 
-  // ---------- Validação ----------
-  const errors = [];
-  if (f.refNum.length !== 3) errors.push('Informe os 3 números da referência');
-  if (!f.tamanhos.length) errors.push('Escolha pelo menos um tamanho');
-  parts.forEach((k) => {
-    const p = f.partes[k];
-    const nome = parts.length > 1 ? ` (${PART_LABEL[k].toLowerCase()})` : '';
-    if (!p.preco) errors.push(`Informe o valor por peça${nome}`);
-    if (!conferencia) {
-      if (!p.total) errors.push(`Informe a quantidade${nome}`);
-      if ((p.t6 || 0) + (p.t8 || 0) > (p.total || 0) && f.cobra) errors.push(`Tam. 6 + 8 maior que o total${nome}`);
-    }
-  });
-  if (conferencia && preview && lotePieces(preview) === 0) errors.push('Digite as quantidades entregues');
-  if (f.dataPrevista && f.dataPrevista < f.dataInicio) errors.push('O prazo é antes do início');
-  if (conferencia && f.dataFim && f.dataFim < f.dataInicio) errors.push('A data de fim é antes do início');
+  const errors = preview ? problemas(preview) : [];
 
   // ---------- Ações ----------
   const save = async () => {
     if (errors.length) {
       setTried(true);
-      if (/prazo|data/i.test(errors[0])) setShowDatas(true);
+      if (/data/i.test(errors[0])) setShowDatas(true);
       return toast(errors[0], 'error');
     }
     setSaving(true);
-    const l = buildLote(f, lote, conferencia);
+    const l = doFormulario(f, lote, conferencia);
     const ok = await run(() => saveLote(l), conferencia ? (wasFinal ? 'Lote atualizado' : 'Lote finalizado!') : isNew ? 'Lote criado' : 'Lote salvo');
     setSaving(false);
     if (ok) {
@@ -202,8 +165,7 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
   };
 
   const remove = async () => {
-    const yes = await confirmDialog({ title: 'Excluir lote?', text: `O lote #${lote.ref} será apagado. Isso não pode ser desfeito.`, ok: 'Excluir', danger: true, icon: 'trash' });
-    if (!yes) return;
+    if (!(await confirmarExclusao(lote))) return;
     await run(() => deleteLote(lote.id), 'Lote excluído');
     onClose();
   };
@@ -211,7 +173,7 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
   const reopen = async () => {
     const yes = await confirmDialog({ title: 'Reabrir lote?', text: 'Ele volta para "em andamento". As quantidades conferidas ficam guardadas.', ok: 'Reabrir', icon: 'undo' });
     if (!yes) return;
-    const l = { ...buildLote(f, lote, false) };
+    const l = reabrir(montar(paraDados(f), lote));
     await run(() => saveLote(l), 'Lote reaberto');
     onClose();
   };
@@ -423,7 +385,7 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
       <!-- Datas (recolhidas; o botão mostra um resumo) -->
       <button type="button" class=${'lf-dates-toggle' + (showDatas ? ' open' : '')} onClick=${() => setShowDatas(!showDatas)} aria-expanded=${showDatas}>
         <${Icon} name="calendar" size=${16} />
-        <span>Início <b>${dm(f.dataInicio)}</b> · ${conferencia ? html`Entregue <b>${dm(f.dataFim)}</b>` : html`Prazo <b>${f.dataPrevista ? dm(f.dataPrevista) : '—'}</b>`}</span>
+        <span>Início <b>${dm(f.dataInicio)}</b>${conferencia && html` · Entregue <b>${dm(f.dataFim)}</b>`}</span>
         <${Icon} name="down" size=${16} class=${showDatas ? 'rot' : ''} />
       </button>
       ${showDatas && html`<section class="lf-card lf-dates">
@@ -431,15 +393,10 @@ export const LoteForm = ({ lote, template, finish, onClose, onDuplicate }) => {
           <span class="lf-label">Início</span>
           <input class="input" type="date" value=${f.dataInicio} max=${today()} onInput=${(e) => up({ dataInicio: e.target.value || today() })} />
         </label>
-        ${conferencia
-          ? html`<label class="lf-field">
-              <span class="lf-label">Entregue em</span>
-              <input class="input" type="date" value=${f.dataFim} onInput=${(e) => up({ dataFim: e.target.value || today() })} />
-            </label>`
-          : html`<label class="lf-field">
-              <span class="lf-label">Prazo</span>
-              <input class="input" type="date" value=${f.dataPrevista} min=${f.dataInicio} onInput=${(e) => up({ dataPrevista: e.target.value })} />
-            </label>`}
+        ${conferencia && html`<label class="lf-field">
+            <span class="lf-label">Entregue em</span>
+            <input class="input" type="date" value=${f.dataFim} onInput=${(e) => up({ dataFim: e.target.value || today() })} />
+          </label>`}
       </section>`}
 
       ${conferencia && html`<${Toggle} on=${f.pago} onChange=${(v) => up({ pago: v })} label="Já recebi o pagamento"

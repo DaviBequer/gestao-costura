@@ -1,21 +1,7 @@
-// Regras de negócio puras (sem tela). Todo valor em dinheiro é em centavos.
-//
-// Estrutura de um lote:
-// {
-//   id, ref: '0123A', tipo: 'superior' | 'inferior' | 'conjunto',
-//   tamanhos: [2, 3, 4, 6, 8], obs: '',
-//   partes: {
-//     sup?: { preco, plan: { total, t6, t8 }, real: { [tamanho]: qtd } | null },
-//     inf?: { ... mesmo formato ... }
-//   },
-//   cobraAdicional: true, adicional: 20,       // centavos por peça tam. 6/8
-//   status: 'em_andamento' | 'finalizado',
-//   dataInicio, dataPrevista, dataFim,         // 'AAAA-MM-DD'
-//   pago: false, dataPagamento: null,
-//   foto: dataURL | null, criadoEm, atualizadoEm
-// }
+// Cálculos puros (sem tela): valor, peças, meses e semanas. Todo valor em dinheiro é em centavos.
+// O formato do lote e as regras de criar/alterar um lote ficam em lote.js.
 
-import { sameMonth, daysBetween, today, parseDate, daysInMonth } from './util.js';
+import { sameMonth, daysBetween, today, daysInMonth } from './util.js';
 
 export const EXTRA_SIZES = [6, 8];
 export const PART_LABEL = { sup: 'Superior', inf: 'Inferior' };
@@ -188,18 +174,4 @@ export const lastPriceForRef = (lotes, ref, excludeId) => {
   if (!same.length) return null;
   const l = same[0];
   return { tipo: l.tipo, sup: l.partes.sup?.preco ?? null, inf: l.partes.inf?.preco ?? null };
-};
-
-/** Problemas encontrados num lote (tela de verificação) */
-export const loteProblems = (l) => {
-  const p = [];
-  if (!l.ref || l.ref.length < 4) p.push('Referência incompleta');
-  if (!l.tamanhos?.length) p.push('Sem tamanhos');
-  partsOf(l).forEach((k) => {
-    if (!l.partes[k].preco) p.push(`Sem preço (${k === 'sup' ? 'superior' : 'inferior'})`);
-    if (!partQty(l, k)) p.push(`Sem quantidade (${k === 'sup' ? 'superior' : 'inferior'})`);
-  });
-  if (isFinal(l) && !l.dataFim) p.push('Finalizado sem data de fim');
-  if (l.dataFim && l.dataInicio && parseDate(l.dataFim) < parseDate(l.dataInicio)) p.push('Fim antes do início');
-  return p;
 };

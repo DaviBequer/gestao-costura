@@ -1,7 +1,7 @@
 // Tela inicial: resumo do mês (meta + semanas), alertas, filtros e lista de lotes.
 
 import { html, useState, useMemo, useRef, useEffect } from '../../vendor/preact-htm.js';
-import { Icon, Sheet, MoneyInput, Empty, confirmDialog, run, tipoIcon } from '../ui.js';
+import { Icon, Sheet, MoneyInput, Empty, confirmarExclusao, run, tipoIcon } from '../ui.js';
 import { brl, brl0, dm, fmtRef, MESES, daysInMonth, daysBetween, today, num } from '../util.js';
 import {
   FILTERS, applyFilter, filterMonth, finishedInMonth, openLotes, loteValue, lotePieces, weeksOfMonth, currentWeekIndex,
@@ -255,7 +255,7 @@ const LoteRow = ({ lote, onOpen, onFinish, swiped, setSwiped }) => {
 
   const remove = async (e) => {
     e.stopPropagation();
-    const yes = await confirmDialog({ title: 'Excluir lote?', text: `O lote #${lote.ref} será apagado. Isso não pode ser desfeito.`, ok: 'Excluir', danger: true, icon: 'trash' });
+    const yes = await confirmarExclusao(lote);
     setSwiped(null);
     if (yes) run(() => deleteLote(lote.id), 'Lote excluído');
   };
